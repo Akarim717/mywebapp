@@ -1,24 +1,28 @@
-# Yang Kita Tinggalkan di Tioman
+# The 72-Hour Restructuring
 
-Thriller CYOA interaktif dalam Bahasa Melayu. Bahagian 1 mengikuti lima sahabat yang bercuti di Pulau Tioman sebelum satu insiden di jeti dan kehilangan Daniel mengubah perjalanan mereka.
+An interactive MBA / postgraduate Strategic HRM learning simulation. The learner plays Dr. Maya Chen, Chief People Officer of Aurelis Systems, and has 72 simulated hours to formulate and defend a $42m restructuring strategy.
 
-## Pengalaman
+## Experience
 
-- 14 babak sinematik dengan satu cabang utama dan lima pengakhiran
-- Status kepercayaan, bukti dan bahaya yang kekal sepanjang permainan
-- Panel watak, inventori bukti, peta laluan dan jejak keputusan
-- Simpanan automatik, checkpoint, kawalan saiz teks dan mod kurang gerakan
-- Reka bentuk responsif untuk telefon dan desktop
+- Five learning modes: Practice, Challenge, Assessment, Expert and Explorer
+- Seven major decisions plus a structured final board recommendation
+- Persistent financial, capability, trust and organisational-risk dimensions
+- Evidence Folder with realistic workforce, finance, employee, customer and executive artefacts
+- Required written reasoning, stakeholder dialogue and narrative consequences
+- Eight pathway-dependent endings
+- Personalised academic debrief, counterfactual explorer and Learning Journey Report
+- Optional browser narration with transcripts
+- Autosave/resume, accessible focus states and responsive layouts
 
-## Jalankan
+## Run locally
 
 ```sh
 npm start
 ```
 
-Buka `http://localhost:4173`.
+Open `http://localhost:4173`.
 
-## Semak dan bina
+## Validate and build
 
 ```sh
 npm run check

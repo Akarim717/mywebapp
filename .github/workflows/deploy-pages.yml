@@ -1,4 +1,4 @@
-name: Deploy Tioman CYOA to GitHub Pages
+name: Deploy The 72-Hour Restructuring to GitHub Pages
 
 on:
   push:

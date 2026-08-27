@@ -12,11 +12,15 @@ for (const entry of ['index.html', 'styles.css', 'app.js']) {
   cpSync(source, resolve(output, entry));
 }
 
-const assets = ['tioman-opening-resort-v2.jpg', 'tioman-jetty-hero.jpg', 'mersing-reunion.jpg', 'kampung-tekek.jpg', 'jetty-confrontation.jpg', 'daniel-missing.jpg'];
-const assetOutput = resolve(output, 'assets', 'tioman');
+const assets = [
+  ...Array.from({ length: 8 }, (_, index) => `restructuring-scene-${String(index + 1).padStart(2, '0')}.jpg`),
+  'opening-background.jpg',
+  'og-restructuring.jpg',
+];
+const assetOutput = resolve(output, 'assets');
 mkdirSync(assetOutput, { recursive: true });
 for (const asset of assets) {
-  const source = resolve(root, 'assets', 'tioman', asset);
+  const source = resolve(root, 'assets', asset);
   if (!existsSync(source)) throw new Error(`Aset visual tiada: ${asset}`);
   cpSync(source, resolve(assetOutput, asset));
 }
@@ -25,4 +29,4 @@ const fontSource = resolve(root, 'assets', 'fonts');
 if (!existsSync(resolve(fontSource, 'ScoutieSans-Variable.ttf'))) throw new Error('Fon Scoutie Sans tiada.');
 cpSync(fontSource, resolve(output, 'assets', 'fonts'), { recursive: true });
 
-console.log('Binaan Yang Kita Tinggalkan di Tioman tersedia dalam dist/.');
+console.log('The 72-Hour Restructuring build is ready in dist/.');

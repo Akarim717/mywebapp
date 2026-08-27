@@ -1,949 +1,380 @@
+/* The 72-Hour Restructuring — interactive MBA simulation */
 const app = document.querySelector('#app');
 const announcer = document.querySelector('#announcer');
+const SAVE_KEY = 'aurelis_72hr_restructuring_v1';
 
-const SAVE_KEY = 'tioman_cyoa_part1_save';
-const CHECKPOINT_KEY = 'tioman_cyoa_part1_checkpoints';
-const ENDINGS_KEY = 'tioman_cyoa_part1_endings';
-
-const ASSETS = {
-  opening: 'assets/tioman/tioman-opening-resort-v2.jpg',
-  hero: 'assets/tioman/tioman-jetty-hero.jpg',
-  reunion: 'assets/tioman/mersing-reunion.jpg',
-  tekek: 'assets/tioman/kampung-tekek.jpg',
-  jetty: 'assets/tioman/jetty-confrontation.jpg',
-  missing: 'assets/tioman/daniel-missing.jpg',
+const MODES = {
+  practice: { name: 'Practice Mode', note: 'Prompts, visible score movement and a chance to reconsider.' },
+  challenge: { name: 'Challenge Mode', note: 'Moderate scaffolding with concise consequence feedback.' },
+  assessment: { name: 'Assessment Mode', note: 'Decisions and reasoning are recorded; feedback waits until the end.' },
+  expert: { name: 'Expert Mode', note: 'Full ambiguity, pressure and conflicting evidence. Recommended.' },
+  explorer: { name: 'Explorer Mode', note: 'Investigate alternatives freely and replay from decision points.' },
 };
+const PHILOSOPHIES = [
+  {id:'A',title:'Financial Reset',detail:'Prioritise guaranteed near-term savings.',potential:'This could increase financial certainty while placing greater pressure on capability and secondary costs.'},
+  {id:'B',title:'Balanced Restructure',detail:'Targeted reductions plus structural savings and capability protection.',potential:'This may distribute risk more evenly, but delivery depends on several interlocking interventions.'},
+  {id:'C',title:'Capability Transformation',detail:'Accept lower immediate savings to redesign for future capability.',potential:'This could strengthen future fit while reducing near-term financial credibility.'},
+  {id:'D',title:'Adaptive Restructure',detail:'Initial intervention plus explicit triggers for subsequent action.',potential:'This may preserve optionality, but requires explicit triggers to avoid prolonged uncertainty.'},
+];
 
-const CHARACTERS = {
-  Aiman: {
-    initials: 'AH',
-    role: 'Ketua yang tidak rasmi',
-    body: 'Tenang dan biasanya membuat keputusan apabila kumpulan berada dalam masalah.',
-  },
-  Sara: {
-    initials: 'SI',
-    role: 'Pemerhati yang tajam',
-    body: 'Berani, teliti dan sukar mempercayai jawapan yang tidak lengkap.',
-  },
-  'Mei Lin': {
-    initials: 'ML',
-    role: 'Perakam kumpulan',
-    body: 'Praktikal, bijak teknologi dan hampir sentiasa memegang telefonnya.',
-  },
-  Arjun: {
-    initials: 'AR',
-    role: 'Penceri suasana',
-    body: 'Paling banyak bergurau, tetapi mudah menyalahkan dirinya sendiri.',
-  },
-  Daniel: {
-    initials: 'DL',
-    role: 'Jurugambar yang pendiam',
-    body: 'Semakin menjauh sejak mereka bersekolah berasingan. Dialah yang memilih Tioman.',
-  },
-  Hafiz: {
-    initials: 'HR',
-    role: 'Anak tempatan Tioman',
-    body: 'Membantu operator bot dan mengambil kerja fotografi bawah air. Daniel mengenalinya secara rahsia.',
-  },
-  'Pak Razak': {
-    initials: 'PR',
-    role: 'Pemilik homestay',
-    body: 'Ramah, tetapi reaksinya terhadap Daniel dan jeti lama sukar dijelaskan.',
-  },
+const SCORE_LABELS = {
+  financial: [['Critical', 34], ['Pressured', 59], ['Credible', 79], ['Strong', 101]],
+  capability: [['Severe risk', 34], ['Exposed', 59], ['Protected', 79], ['Resilient', 101]],
+  trust: [['Deteriorating', 34], ['Fragile', 59], ['Stable', 79], ['Strong', 101]],
+  risk: [['Controlled', 34], ['Elevated', 59], ['Severe', 79], ['Critical', 101]],
 };
 
 const EVIDENCE = {
-  'Foto Bot': {
-    type: 'Foto',
-    title: 'Foto Bot',
-    body: 'Bot putih dengan tiga lelaki dan nombor pendaftaran yang separuh terlindung.',
-    question: 'Mengapa Daniel merakam bot ini berkali-kali?',
-  },
-  'Foto Pertukaran': {
-    type: 'Pemerhatian',
-    title: 'Foto Pertukaran',
-    body: 'Daniel kelihatan menyerahkan sesuatu seperti kad memori kecil kepada Hafiz.',
-    question: 'Apakah yang dipindahkan antara mereka?',
-  },
-  'Telefon Hafiz': {
-    type: 'Peranti',
-    title: 'Telefon Hafiz',
-    body: 'Telefon retak yang ditemui di dalam lumpur. Notifikasi terakhirnya ialah UPLOAD COMPLETE dan 1 FILE SENT.',
-    question: 'Fail apa yang dihantar, dan kepada siapa?',
-  },
-  'Polaroid Jeti': {
-    type: 'Foto',
-    title: 'Polaroid Jeti',
-    body: 'Gambar lima sahabat di jeti lama yang diambil dari arah resort.',
-    question: 'Siapa yang cukup dekat untuk mengambil gambar ini?',
-  },
+  finance_target: { category: 'Finance', type: 'Board directive', title: 'Required action', stamp: 'MON 07:12', content: `
+    <div class="artifact-metric"><span>Annual operating expenditure</span><strong>$233m → $191m</strong></div>
+    <div class="artifact-metric"><span>Required reduction</span><strong>$42m</strong></div>
+    <div class="artifact-metric"><span>Division headcount</span><strong>4,850</strong></div>
+    <div class="artifact-metric"><span>Profit margin</span><strong>4.8% → 9% target</strong></div>
+    <p class="artifact-note">Finance assumption: 450 × $93,000 average fully loaded cost = $41.85m.</p>` },
+  workforce_profile: { category: 'Workforce', type: 'Analytics table', title: 'Workforce distribution', stamp: 'MON 11:40', content: `
+    <div class="table-scroll"><table><thead><tr><th>Group</th><th>Employees</th><th>Avg. cost</th><th>Turnover</th><th>Scarcity</th></tr></thead><tbody>
+    <tr><td>Engineering</td><td>1,420</td><td>$108k</td><td>11%</td><td>High</td></tr><tr><td>Field Service</td><td>1,060</td><td>$89k</td><td>8%</td><td>High</td></tr><tr><td>Sales & Customer</td><td>610</td><td>$102k</td><td>14%</td><td>Medium</td></tr><tr><td>Operations Support</td><td>720</td><td>$77k</td><td>6%</td><td>Low–Medium</td></tr><tr><td>Corporate/Admin</td><td>590</td><td>$81k</td><td>5%</td><td>Low</td></tr><tr><td>Management</td><td>450</td><td>$149k</td><td>4%</td><td>Mixed</td></tr></tbody></table></div>` },
+  structural: { category: 'Workforce', type: 'People analytics brief', title: 'Structural indicators', stamp: 'MON 11:40', content: `<ul class="artifact-list"><li>138 managers supervise fewer than four people; spans range from 2 to 19.</li><li>Contractor expenditure: $11.6m annually.</li><li>176 vacancies are approved.</li><li>Two underutilised facilities cost approximately $7m annually.</li><li>23% of employees are classified as possessing critical capability; the classification is 18 months old.</li><li>Historical ratings vary substantially between managers.</li></ul>` },
+  options: { category: 'Finance', type: 'Scenario model', title: 'Three restructuring architectures', stamp: 'MON 12:05', content: `
+    <div class="mini-scenarios"><article><b>Alpha · Headcount-led</b><strong>$41.9m</strong><span>450 positions · high speed · low capability certainty</span></article><article><b>Beta · Mixed</b><strong>$42m</strong><span>240 positions + contractors + delayering + vacancies + facilities</span></article><article><b>Gamma · Capability transformation</b><strong>$28–34m Y1</strong><span>180–220 reductions + 80 new roles · $48–55m potential Y3</span></article></div>` },
+  helios: { category: 'Customers', type: 'Contract dossier', title: 'Project Helios', stamp: 'MON 16:25', content: `<div class="artifact-metric"><span>Annual revenue</span><strong>$96m</strong></div><div class="artifact-metric"><span>Renewal decision</span><strong>11 weeks</strong></div><div class="artifact-metric"><span>Employees supporting contract</span><strong>212</strong></div><div class="artifact-metric"><span>Difficult-to-replace specialists</span><strong>37</strong></div><p class="artifact-note">Nine specialists hold poorly documented knowledge. Three appear on provisional redundancy lists because they are expensive and manage nobody.</p>` },
+  critical_bias: { category: 'Capability', type: 'Analytics warning', title: 'Critical talent classification', stamp: 'MON 17:02', content: `<p>Employees currently labelled “critical talent” are disproportionately:</p><ul class="artifact-list"><li>located at headquarters;</li><li>male;</li><li>rated highly by a small group of senior executives.</li></ul><blockquote>“I’m not saying the classification is biased. I’m saying we cannot assume it isn’t.” <cite>— Aisha Rahman</cite></blockquote>` },
+  leaked_plan: { category: 'Employees', type: 'Internal post', title: 'Leaked workforce plan', stamp: 'TUE 08:10', content: `<div class="leak-card"><small>LEAKED · INDUSTRIAL SOLUTIONS</small><strong>Potential reduction: 450 positions</strong><p>Hundreds of employees have joined the discussion. No one knows that this is only one scenario.</p></div><blockquote>“Leadership knows who is going. They’re just waiting until Thursday to tell us.” <cite>— popular employee post</cite></blockquote>` },
+  selection: { category: 'Employees', type: 'Fairness analysis', title: 'Preliminary selection outcomes', stamp: 'TUE 14:30', content: `<div class="table-scroll"><table><thead><tr><th>Group</th><th>Workforce</th><th>Proposed reduction</th></tr></thead><tbody><tr><td>Age under 40</td><td>54%</td><td>46%</td></tr><tr><td>Age 40–54</td><td>34%</td><td>37%</td></tr><tr><td>Age 55+</td><td>12%</td><td>17%</td></tr><tr><td>Women</td><td>39%</td><td>36%</td></tr><tr><td>Men</td><td>61%</td><td>64%</td></tr><tr><td>Recent hires &lt;2 years</td><td>18%</td><td>25%</td></tr><tr><td>Remote employees</td><td>21%</td><td>31%</td></tr></tbody></table></div><p class="artifact-note">Patterns do not prove unfair treatment. Managers used inconsistent criteria including salary, tenure, “attitude”, travel willingness and office attendance.</p>` },
+  renewal: { category: 'Customers', type: 'Risk estimate', title: 'Helios renewal probability', stamp: 'WED 09:15', content: `<div class="table-scroll"><table><thead><tr><th>Scenario</th><th>Renewal probability</th></tr></thead><tbody><tr><td>No visible disruption</td><td>82%</td></tr><tr><td>Moderate capability disruption</td><td>61%</td></tr><tr><td>Significant specialist departures</td><td>38%</td></tr></tbody></table></div><p class="artifact-note">Operations judgement; not statistically validated. Finance now estimates that $46m may be required after another project delay.</p>` },
+  finance_recommendation: { category: 'Executive Communications', type: 'Executive proposal', title: 'Finance recommendation', stamp: 'WED 18:20', content: `<ul class="artifact-list"><li>Eliminate 420–460 positions.</li><li>Announce minimum annual savings of $42m.</li><li>Complete implementation within five months.</li><li>Allow business leaders discretion over execution.</li></ul><blockquote>“The market will understand a number. It will not understand an HR framework.” <cite>— Elena Varga</cite></blockquote>` },
 };
 
 const SCENES = [
   {
-    id: 'P1-S01', number: 1, title: 'Lima Orang, Seperti Dulu',
-    location: 'Terminal Feri Mersing', time: '9.42 pagi', image: ASSETS.reunion,
-    alt: 'Lima remaja Malaysia bertemu semula di Terminal Feri Mersing pada pagi yang cerah.', tone: 'warm',
-    chunks: [
-      { type: 'narration', text: 'Terminal Feri Mersing penuh dengan bunyi enjin, pengumuman perjalanan dan pelancong yang cuba memahami tiket mereka. Di tengah-tengah semua itu, Arjun berdiri dengan sebungkus keropok lekor.' },
-      { type: 'dialogue', speaker: 'Arjun', text: 'Lima belas minit lagi.' },
-      { type: 'dialogue', speaker: 'Mei Lin', text: 'Kau dah cakap lima belas minit sejak setengah jam tadi.' },
-      { type: 'narration', text: 'Sudah hampir setahun sejak mereka berlima berada di tempat yang sama. Sekolah menengah memecahkan rutin lama mereka. Daniel pula semakin jarang muncul dalam kumpulan mesej.' },
-      { type: 'narration', text: 'Namun idea reunion ini datang daripadanya. Dua minggu selepas mesej ringkasnya, mereka berada di Mersing. Hampir semuanya.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Boleh tak korang mengumpat perlahan sikit?' },
-      { type: 'narration', text: 'Daniel muncul dengan beg galas hitam dan kamera di dada. Lebih kurus, lebih diam. Matanya seperti sentiasa memeriksa sesuatu di belakang orang lain.' },
-      { type: 'beat', text: 'Untuk sesaat, selepas satu foto berkumpulan, mereka berlima kembali seperti berumur dua belas tahun.' },
+    id: 'problem', number: 1, day: 'Monday', phase: 'Evidence gathering', time: '07:12', remaining: '72 HOURS REMAINING', title: "The CEO's Ultimatum", image: 'assets/restructuring-scene-01.jpg',
+    alt: 'Chief People Officer Maya Chen faces Aurelis Systems’ CEO and CFO in a rainy early-morning boardroom.',
+    narration: 'Monday morning begins with what appears to be a simple equation: forty-two million dollars divided by average employee cost. But workforce strategy rarely behaves like arithmetic. Your first decision is not who should leave. It is deciding what problem the organisation is actually trying to solve.',
+    intro: [`Your phone vibrates before you reach your office. Seven minutes later you enter the executive conference room. Elena is standing beside a screen. Raj Patel from Finance is already there.`, `Industrial Solutions has missed its profit target for three consecutive quarters. The board wants a workforce recommendation by Thursday morning.`],
+    dialogue: [['Elena Varga · CEO', 'Executive conference room. Now.'], ['Raj Patel · CFO', "Average fully loaded employee cost is around $93,000. Remove 450 positions and we're essentially there."], ['Elena', 'I need a restructuring proposal Thursday morning.'], ['Raj', "It's a cost problem, Maya. Don't make it more complicated than it is."], ['Sofia Martinez · EVP Operations', 'It becomes complicated when the people you eliminate are the people who know how our systems work.'], ['Elena', 'You own the workforce recommendation.']],
+    evidence: ['finance_target'],
+    question: 'What problem are you actually solving?',
+    reasoning: 'State the problem, assumptions you accept or challenge, and the information you need next.',
+    hint: 'Problem framing constrains every later intervention. Separate the board’s required outcome from Finance’s preferred mechanism.',
+    options: [
+      { id:'A', label:'Headcount-reduction problem', detail:'Target approximately 450 eliminated positions and execute quickly.', effects:{financial:14, capability:-13, trust:-5, risk:11}, consequence:'Raj strongly supports the approach. Operations believes HR has already equated people with cost. At 09:00, you ask People Analytics to validate the numbers.' },
+      { id:'B', label:'Cost-reduction problem', detail:'Accept $42m while preserving headcount and non-headcount options.', effects:{financial:8, capability:7, trust:3, risk:-4}, consequence:'Finance accepts the framing but asks you to prove equivalent savings. You retain strategic flexibility and commission a wider evidence pack.' },
+      { id:'C', label:'Strategic capability redesign', detail:'Redesign the workforce around future capabilities and operating needs.', effects:{financial:-8, capability:15, trust:5, risk:4}, consequence:'Sofia supports you. Raj warns the CEO: “We have 72 hours, not six months.” Strategic alignment improves, but the timetable tightens.' },
+      { id:'D', label:'Challenge the $42m target first', detail:'Test whether the board’s financial target is realistic before intervening.', effects:{financial:-12, capability:5, trust:2, risk:9}, consequence:'Elena replies, “The target isn’t yours to renegotiate.” You signal independence but spend political capital immediately.' },
     ],
-    choices: [
-      { id: 'P1-S01-A', label: 'Tegur Daniel secara peribadi', detail: 'Tanya sama ada dia benar-benar okay.', next: 'P1-S02', effects: { trustDaniel: 1 }, flags: ['AIMAN_NOTICES_DANIEL'] },
-      { id: 'P1-S01-B', label: 'Biarkan sahaja', detail: 'Jangan rosakkan mood reunion.', next: 'P1-S02' },
-      { id: 'P1-S01-C', label: 'Usik Daniel bersama-sama', detail: 'Beri ruang kepada nostalgia lama.', next: 'P1-S02', flags: ['DANIEL_UNQUESTIONED'] },
-    ],
+    transition:'At 11:37 Aisha Rahman messages: “We need to talk before anyone acts on these numbers.”'
   },
   {
-    id: 'P1-S02', number: 2, title: 'Laut Yang Terlalu Tenang',
-    location: 'Feri ke Pulau Tioman', time: '11.18 pagi', image: ASSETS.reunion, imagePosition: '70% center',
-    alt: 'Feri penumpang bergerak dari Mersing menuju Pulau Tioman.', tone: 'calm',
-    chunks: [
-      { type: 'narration', text: 'Feri meninggalkan Mersing sedikit selepas pukul sepuluh. Goyangan laut dan bunyi enjin yang monoton akhirnya membuatkan kabin senyap.' },
-      { type: 'narration', text: 'Daniel berdiri seorang diri di belakang feri. Aiman menemuinya sedang mengambil gambar horizon.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Kau pernah fikir tak, kalau kau nampak sesuatu yang salah, tapi kalau kau buka mulut, orang lain boleh kena sekali?' },
-      { type: 'narration', text: 'Telefon Daniel bergetar. Wajahnya berubah, tetapi dia mengatakan mesej itu cuma spam.' },
-      { type: 'narration', text: 'Sebuah bot laju putih memotong feri dari jauh. Daniel mengangkat kamera. Klik. Klik. Klik.' },
-      { type: 'dialogue', speaker: 'Aiman', text: 'Kenal?' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Tak.' },
-      { type: 'beat', text: 'Daniel memeriksa gambar bot itu dua kali.' },
+    id:'architecture', number:2, day:'Monday', phase:'Evidence gathering', time:'11:40', remaining:'67 HOURS REMAINING', title:'The Workforce Evidence', image:'assets/restructuring-scene-02.jpg',
+    alt:'People analytics team studies workforce dashboards in a modern war room.',
+    narration:'Averages provide certainty because they simplify reality. But simplification carries risk. The organisation does not employ four thousand eight hundred interchangeable units of labour. It employs a network of capabilities, relationships, knowledge and cost.',
+    intro:[`Aisha closes the meeting-room door. The workforce profile shows high-cost scarce engineering, low-cost support, uneven management spans, contractors, vacancies and underused facilities.`, `Finance asks you to compare three high-level architectures. Each can reduce cost. They expose the organisation to very different risks.`],
+    dialogue:[['Aisha Rahman · Head of People Analytics', "Finance isn't wrong. They're just using averages that hide almost everything important."], ['Aisha', "The employee cost average doesn't tell us which capabilities disappear when particular people leave."], ['Raj', 'If the facility savings slip, your business case collapses.']],
+    evidence:['workforce_profile','structural','options'],
+    question:'Choose the strategic architecture',
+    reasoning:'Define the criteria and defend the weight you give savings certainty, speed, capability, customer risk, trust and flexibility.',
+    hint:'A mixed architecture diversifies delivery risk. A transformation architecture may be strategically strong yet economically infeasible in year one.',
+    options:[
+      {id:'A',label:'Alpha · Headcount-led',detail:'Remove 450 positions for $41.9m expected savings.',effects:{financial:16,capability:-15,trust:-8,risk:14},consequence:'Board acceptance probability rises sharply. Yet 23% of positions on initial local nomination lists are linked to capabilities classified as critical.'},
+      {id:'B',label:'Beta · Mixed restructuring',detail:'Use targeted reductions, contractor cuts, delayering, vacancies and facilities.',effects:{financial:10,capability:8,trust:5,risk:-7},consequence:'Your team inherits a more complex implementation. Finance warns that delayed facility savings could break the case, but capability exposure falls.'},
+      {id:'C',label:'Gamma · Capability transformation',detail:'Accept $28–34m year-one savings for a future-focused redesign.',effects:{financial:-13,capability:17,trust:7,risk:5},consequence:'Operations supports the proposal. Elena replies: “Transformation is not a synonym for avoiding difficult decisions.”'},
+      {id:'D',label:'Staged strategy',detail:'Commit to $30–35m now; make a second wave conditional.',effects:{financial:-2,capability:10,trust:-3,risk:-2},consequence:'You preserve optionality but create uncertainty. Employee representatives may see the possibility of a second wave as prolonged insecurity.'},
     ],
-    choices: [
-      { id: 'P1-S02-A', label: 'Minta tengok gambar bot', detail: 'Perhatikan apa yang menarik perhatian Daniel.', next: 'P1-S03', effects: { evidence: 1 }, flags: ['SAW_BOAT_EARLY'], inventory: ['Foto Bot'] },
-      { id: 'P1-S02-B', label: 'Tanya tentang mesej telefon', detail: 'Desak Daniel untuk menjawab.', next: 'P1-S03', effects: { trustDaniel: -1 }, flags: ['DANIEL_DEFENSIVE'] },
-      { id: 'P1-S02-C', label: 'Jangan ganggu Daniel', detail: 'Biarkan dia menikmati perjalanan.', next: 'P1-S03' },
-    ],
+    transition:'At 16:25, Lena Hoffmann calls. Three senior engineers have resigned since Friday—all on the same customer platform.'
   },
   {
-    id: 'P1-S03', number: 3, title: 'Tioman',
-    location: 'Kampung Tekek, Pulau Tioman', time: '2.06 petang', image: ASSETS.tekek,
-    alt: 'Homestay sederhana dan motosikal di sebuah lorong Kampung Tekek.', tone: 'day',
-    chunks: [
-      { type: 'narration', text: 'Tioman muncul perlahan-lahan di horizon. Bukit hijau, batu granit dan air yang semakin jernih. Mereka turun berhampiran Kampung Tekek.' },
-      { type: 'narration', text: 'Bau laut bercampur minyak bot. Motosikal kecil bergerak melalui jalan sempit. Homestay mereka sederhana, dengan dua bilik dan beranda kayu.' },
-      { type: 'dialogue', speaker: 'Pak Razak', text: 'Budak-budak KL?' },
-      { type: 'dialogue', speaker: 'Arjun', text: 'Shah Alam pun ada, pak cik.' },
-      { type: 'narration', text: 'Apabila Daniel bersalaman dengan Pak Razak, pemilik homestay itu berhenti seketika. Pandangan mereka bertemu terlalu lama.' },
-      { type: 'dialogue', speaker: 'Pak Razak', text: 'Kamu pernah datang sini?' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Tak pernah.' },
-      { type: 'beat', text: 'Sara pasti nada Daniel berubah.' },
+    id:'capability',number:3,day:'Monday',phase:'Evidence gathering',time:'16:25',remaining:'62 HOURS REMAINING',title:'The Capability Trap',image:'assets/restructuring-scene-03.jpg',
+    alt:'Maya watches engineering leader Lena Hoffmann map critical technical knowledge dependencies.',
+    narration:"Organisations often claim they know who their critical talent is. Under pressure, those assumptions become consequential. Protect too little and capability disappears. Protect the wrong people and yesterday's power structures become tomorrow's workforce strategy.",
+    intro:[`Nova Automation is targeting Aurelis systems engineers. Project Helios, the largest service contract, depends on a web of specialist knowledge that the organisation has barely documented.`, `Nine specialists are difficult to replace within six months. Three appear on provisional redundancy lists submitted by local managers.`],
+    dialogue:[['Lena Hoffmann · VP Engineering', "Nova Automation is targeting our systems engineers. They know we're restructuring."], ['Maya', 'Why are three Helios specialists on provisional lists?'], ['Lena', "Because they're expensive and none of them manages anybody."], ['Marcus Reed · Division President', 'Every department thinks its people are indispensable.'], ['Aisha', "I'm not saying the classification is biased. I'm saying we cannot assume it isn't."]],
+    evidence:['helios','critical_bias'],
+    question:'What do you protect?',
+    reasoning:'Differentiate a valuable employee, critical role, scarce capability and strategically important capability. Then justify your protection logic.',
+    hint:'People, roles and capabilities are related but not interchangeable. Existing talent labels may encode historical power.',
+    options:[
+      {id:'A',label:'Designated critical employees',detail:'Create a named retention list and exclude those individuals.',effects:{financial:-3,capability:10,trust:-12,risk:8},consequence:'Known talent is protected quickly. Fairness risk rises because the retention list relies on an old, potentially biased classification.'},
+      {id:'B',label:'Critical roles',detail:'Protect strategically important jobs and their incumbents.',effects:{financial:-2,capability:7,trust:3,risk:-2},consequence:'The logic is more defensible than a named list. Some tacit knowledge that sits outside formal role boundaries remains vulnerable.'},
+      {id:'C',label:'Capabilities, not positions',detail:'Map future capabilities, knowledge transfer, retraining and recruitment.',effects:{financial:-5,capability:17,trust:8,risk:-7},consequence:'The proposal becomes strategically sophisticated but harder to translate into a simple headcount answer within 72 hours.'},
+      {id:'D',label:'No protected categories',detail:'Keep every position in one common restructuring framework.',effects:{financial:8,capability:-18,trust:1,risk:15},consequence:'Finance praises consistency. Operations predicts serious delivery exposure: equal treatment may create strategically unequal consequences.'},
     ],
-    choices: [
-      { id: 'P1-S03-A', label: 'Sara tanya Daniel', detail: 'Kenapa Pak Razak nampak seperti mengenalinya?', next: 'P1-S04', effects: { trustDaniel: -1 }, flags: ['SARA_SUSPICIOUS_DANIEL'] },
-      { id: 'P1-S03-B', label: 'Sara tanya Pak Razak', detail: 'Uji reaksi pemilik homestay itu.', next: 'P1-S04', effects: { evidence: 1 }, flags: ['PAK_RAZAK_EVASIVE'] },
-      { id: 'P1-S03-C', label: 'Abaikan', detail: 'Ini percutian. Nikmati sahaja.', next: 'P1-S04' },
-    ],
+    transition:'Tuesday morning begins with a leaked document and hundreds of employees asking whether 450 positions are already decided.'
   },
   {
-    id: 'P1-S04', number: 4, title: 'Tiga Hari Yang Hampir Sempurna',
-    location: 'Kampung Tekek', time: 'Hari kedua, 2.34 petang', image: ASSETS.tekek, imagePosition: 'center',
-    alt: 'Sekumpulan remaja berehat berhampiran homestay di Kampung Tekek sementara Daniel bercakap dengan Hafiz.', tone: 'day',
-    chunks: [
-      { type: 'narration', text: 'Hari pertama berlalu tanpa masalah. Mereka menyewa motosikal, Arjun hampir masuk longkang, dan Sara ketawa sampai menangis.' },
-      { type: 'narration', text: 'Hari kedua lebih baik. Snorkelling, air biru jernih, ikan karang, kemudian makan tengah hari di gerai kecil dengan kipas dinding yang berbunyi kuat.' },
-      { type: 'narration', text: 'Daniel kelihatan lebih santai. Hampir seperti dirinya dahulu. Kemudian Hafiz muncul, pemuda yang membantu operator bot membawa mereka snorkelling.' },
-      { type: 'narration', text: 'Hafiz tersenyum kepada kumpulan itu. Apabila dia melihat Daniel, senyum itu hilang. Daniel bangun untuk membeli air. Hafiz mengikutnya beberapa saat kemudian.' },
-      { type: 'beat', text: 'Sara perasan. Dia bangun perlahan-lahan.' },
+    id:'communication',number:4,day:'Tuesday',phase:'Workforce decisions',time:'08:10',remaining:'47 HOURS REMAINING',title:'The Leak',image:'assets/restructuring-scene-04.jpg',
+    alt:'Maya walks through a glass office corridor as employees react to a leaked restructuring document.',
+    narration:'Restructuring creates two realities: what leaders know and what employees believe leaders know. When information leaks, uncertainty becomes part of the strategy whether leadership wants it to or not.',
+    intro:[`An internal document has appeared on an employee channel: “Potential reduction: 450 positions.” Employees do not know this is only one scenario.`, `Within 30 minutes managers are receiving questions, a union representative contacts the media, senior engineers ask about retention bonuses and competitor recruiters begin messaging Aurelis staff.`],
+    dialogue:[['Elena', 'We say nothing until Thursday.'], ['Daniel Okafor · Employee Council Chair', 'If leadership refuses to speak, people will assume the leaked number is final.'], ['Employee post', "Leadership knows who is going. They're just waiting until Thursday to tell us."]],
+    evidence:['leaked_plan'],
+    question:'How do you communicate under uncertainty?',
+    reasoning:'Draft the three messages employees must receive. Separate what is known, what is uncertain, what employees deserve to know and what cannot yet be promised.',
+    hint:'Transparency is not disclosure of everything. It is accuracy about what is known, unknown and undecided.',
+    options:[
+      {id:'A',label:'Maintain silence',detail:'State that Aurelis does not comment on speculation.',effects:{financial:3,capability:-4,trust:-19,risk:13},consequence:'Rumours accelerate and employees infer that leadership already has a list. Workforce confidence deteriorates sharply.'},
+      {id:'B',label:'Confirm the review, not the number',detail:'Acknowledge evaluation of cost and workforce options; no final decisions.',effects:{financial:1,capability:2,trust:9,risk:-6},consequence:'Anxiety remains high, but managers report that speculation begins to stabilise. You have described uncertainty without pretending it is resolved.'},
+      {id:'C',label:'Communicate the full context',detail:'Explain $42m, the alternatives and the decision criteria.',effects:{financial:-3,capability:3,trust:14,risk:2},consequence:'Some employees appreciate the transparency. Finance is furious that the cost target is now public.'},
+      {id:'D',label:'Say the 450 figure is inaccurate',detail:'Attempt to reduce immediate anxiety.',effects:{financial:0,capability:-2,trust:-14,risk:18},consequence:'Anxiety falls briefly. Later, journalists obtain an email proving that 450 positions were modelled. Credibility exposure rises substantially.'},
     ],
-    choices: [
-      { id: 'P1-S04-A', label: 'Ikuti Daniel dan Hafiz', detail: 'Dengar perbualan mereka secara senyap.', next: 'P1-S05', effects: { evidence: 2 }, flags: ['SARA_HEARD_HAFIZ'] },
-      { id: 'P1-S04-B', label: 'Beritahu Aiman', detail: 'Perhatikan mereka dari jauh bersama-sama.', next: 'P1-S05', effects: { evidence: 1, trustAimanSara: 1 }, flags: ['SAW_EXCHANGE'], inventory: ['Foto Pertukaran'] },
-      { id: 'P1-S04-C', label: 'Jangan campur tangan', detail: 'Biarkan Daniel kembali apabila dia mahu.', next: 'P1-S05' },
-    ],
+    transition:'At 13:55 Daniel messages: “We’ve analysed the proposed cuts. I think you have a discrimination problem.”'
   },
   {
-    id: 'P1-S05', number: 5, title: 'Malam Terakhir',
-    location: 'Gerai makan, Kampung Tekek', time: '10.37 malam', image: ASSETS.tekek, imagePosition: '20% center',
-    alt: 'Gerai makan kampung di Pulau Tioman sebelum hujan malam.', tone: 'dusk',
-    chunks: [
-      { type: 'narration', text: 'Malam terakhir bermula dengan terlalu banyak makanan: ikan bakar, tom yam, telur dadar, kangkung belacan dan satu lagi pinggan nasi yang Arjun tidak perlukan.' },
-      { type: 'narration', text: 'Hujan turun sekitar pukul sepuluh setengah. Di bawah lampu kalimantang, mereka bercakap tentang guru paling garang, hari sukan, kantin dan crush lama.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Korang ingat tak kita pernah janji satu benda?' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Kalau salah seorang daripada kita ada masalah, yang lain tak lari.' },
-      { type: 'dialogue', speaker: 'Arjun', text: 'Bro, kita umur sebelas masa tu.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Janji tetap janji.' },
-      { type: 'narration', text: 'Meja tiba-tiba senyap. Di luar, hujan semakin lebat.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Ada tempat aku nak tunjuk.' },
+    id:'fairness',number:5,day:'Tuesday',phase:'Workforce decisions',time:'14:30',remaining:'41 HOURS REMAINING',title:'The Fairness Problem',image:'assets/restructuring-scene-05.jpg',
+    alt:'A diverse HR review panel studies provisional selection criteria and demographic patterns.',
+    narration:'Fairness is not achieved simply by treating everyone identically. Nor does sophisticated scoring automatically eliminate judgement. The challenge is to make consequential workforce decisions systematic, evidence-based and defensible without pretending uncertainty has disappeared.',
+    intro:[`The provisional management nominations contain 447 roles. Different managers used different criteria: salary, tenure, performance, “attitude”, potential, office attendance and travel willingness. Some criteria are documented. Others are not.`, `Long-tenure specialists appear disproportionately because removing expensive employees generates savings quickly—even when replacement would take 12 to 18 months.`],
+    dialogue:[['Marcus', 'Managers know their teams.'], ['Daniel', "That's exactly what worries me."], ['Raj', 'That is still a saving.'], ['Lena', 'Only if you think capability has zero value.']],
+    evidence:['selection'],
+    question:'Design the selection framework',
+    reasoning:'Identify at least four sources of bias or error. For each, propose one control mechanism.',
+    hint:'A defensible system distinguishes organisation design from individual selection and documents where judgement remains.',
+    options:[
+      {id:'A',label:'Standardised quantitative scoring',detail:'Apply common weighted criteria across the division.',effects:{financial:6,capability:1,trust:6,risk:-5},consequence:'Consistency improves. Yet numerical weights risk turning contested judgements into false objectivity.'},
+      {id:'B',label:'Manager judgement with HR review',detail:'Let local leaders nominate; HR reviews exceptions.',effects:{financial:8,capability:-6,trust:-12,risk:17},consequence:'Contextual knowledge remains in the process, but inconsistent judgement, self-interest and weak documentation persist.'},
+      {id:'C',label:'Role-first restructuring',detail:'Redesign positions first, then select incumbents using documented criteria.',effects:{financial:4,capability:10,trust:11,risk:-12},consequence:'The process connects individual decisions to organisational design. Managers resist the slower, more disciplined approach.'},
+      {id:'D',label:'Capability-based selection panels',detail:'Use cross-functional panels to assess future capability and incumbents.',effects:{financial:-3,capability:15,trust:9,risk:-9},consequence:'Evidence quality improves and single-manager bias falls. The panels are time-consuming and politically contentious.'},
     ],
-    next: 'P1-S06', continueLabel: 'IKUT DANIEL',
+    transition:'Wednesday morning, Sofia enters without knocking: “Helios knows.”'
   },
   {
-    id: 'P1-S06', number: 6, title: 'Resort Lama',
-    location: 'Laluan pesisir Kampung Tekek', time: '11.43 malam', image: ASSETS.jetty,
-    alt: 'Resort pulau yang ditinggalkan, tersembunyi oleh hutan dan hujan malam.', tone: 'night',
-    chunks: [
-      { type: 'narration', text: 'Mereka berjalan hampir dua puluh minit. Jalan kampung gelap, laut di sebelah kiri dan hutan di sebelah kanan.' },
-      { type: 'narration', text: 'Daniel berhenti di hadapan struktur lama yang hampir ditelan pokok. Beberapa tingkap pecah. Papan nama sudah hilang. Sebuah resort terbengkalai.' },
-      { type: 'dialogue', speaker: 'Mei Lin', text: 'Daniel, ini bukan sightseeing.' },
-      { type: 'narration', text: 'Daniel memeriksa jam, kemudian berjalan menuju laluan kecil di tepi resort.' },
-      { type: 'dialogue', speaker: 'Sara', text: 'Aku tak suka benda ni.' },
-      { type: 'beat', text: 'Daniel semakin jauh. Mereka perlu memilih.' },
+    id:'adaptation',number:6,day:'Wednesday',phase:'Strategic escalation',time:'09:15',remaining:'22 HOURS REMAINING',title:'The Client Threat',image:'assets/restructuring-scene-06.jpg',
+    alt:'Maya and Operations leader Sofia assess Helios contract renewal risk.',
+    narration:'A restructuring plan is based on assumptions about the future. The difficulty is that the future continues changing while the plan is being built. Strategic HR requires deciding which assumptions should remain fixed and which should trigger adaptation.',
+    intro:[`Helios procurement requests written assurance that restructuring will not affect service continuity. Losing the $96m contract would destroy most of the savings created by the restructure.`, `Finance now says the division may need $46m, not $42m, because another project has been delayed. The renewal estimates are judgemental rather than statistically validated.`],
+    dialogue:[['Sofia', 'Helios knows.'], ['Raj', 'We cannot redesign the whole restructuring around one customer reaction.'], ['Board chair · via Elena', 'Investors expect a decisive restructuring announcement.']],
+    evidence:['renewal'],
+    question:'How do you respond to the changed environment?',
+    reasoning:'Separate controllable and uncertain variables. Name leading indicators and the event that should trigger a second phase.',
+    hint:'When prediction is weak, explicit decision rules can outperform false certainty—but only if thresholds and ownership are clear.',
+    options:[
+      {id:'A',label:'Increase reductions to $46m',detail:'Maintain financial discipline despite worsening conditions.',effects:{financial:14,capability:-14,trust:-8,risk:14},consequence:'Forecast margins improve. Specialist departures and client disruption become more likely.'},
+      {id:'B',label:'Protect the Helios workforce',detail:'Shield key customer capability and find savings elsewhere.',effects:{financial:-4,capability:14,trust:-3,risk:-4},consequence:'Revenue risk falls, but reductions move elsewhere and other employees question whether one customer creates a privileged group.'},
+      {id:'C',label:'Maintain the original $42m plan',detail:'Refuse to let a moving target destroy strategic coherence.',effects:{financial:-7,capability:3,trust:4,risk:4},consequence:'Coherence improves. If the financial outlook worsens, the board may interpret the shortfall as lack of responsiveness.'},
+      {id:'D',label:'Introduce scenario triggers',detail:'Keep the current plan; define contingent actions for renewal, revenue and capability.',effects:{financial:4,capability:11,trust:5,risk:-13},consequence:'Flexibility improves, but the board dislikes that the final workforce number remains uncertain.'},
     ],
-    choices: [
-      { id: 'P1-S06-A', label: 'Semua ikut Daniel', detail: 'Kekal bersama walaupun risikonya meningkat.', next: 'P1-S07A', effects: { trust: 1, danger: 1 }, flags: ['GROUP_TOGETHER'] },
-      { id: 'P1-S06-B', label: 'Aiman cuba hentikan Daniel', detail: 'Daniel pergi dahulu. Yang lain mengejar.', next: 'P1-S07B', effects: { trustDaniel: -1, danger: 1 } },
-      { id: 'P1-S06-C', label: 'Sara dan Mei Lin pulang', detail: 'Pisahkan kumpulan dan cari jalan selamat.', next: 'P1-S07C', effects: { trust: -1 }, flags: ['GROUP_SPLIT'] },
-    ],
+    transition:'At 15:40 the board chair calls Elena. Investors expect a “decisive restructuring announcement.” Elena summons you.'
   },
   {
-    id: 'P1-S07A', number: 7, title: 'Suara di Hujung Jeti',
-    location: 'Jeti lama', time: '11.57 malam', image: ASSETS.jetty,
-    alt: 'Cahaya lampu suluh membelah hujan di sebuah jeti kayu lama.', tone: 'night', branch: 'A',
-    chunks: [
-      { type: 'narration', text: 'Mereka bergerak bersama melalui laluan basah di belakang resort. Kemudian terdengar dua lelaki bertengkar. Salah seorang ialah Hafiz.' },
-      { type: 'dialogue', speaker: 'Hafiz', text: 'Telefon tu bukan hak kau.' },
-      { type: 'dialogue', speaker: 'Hafiz', text: 'Aku dah copy semuanya.' },
-      { type: 'narration', text: 'Daniel mengeluarkan telefon dan mula merakam.' },
-      { type: 'dialogue', speaker: 'Sara', text: 'Daniel. Jangan.' },
-      { type: 'narration', text: 'Lampu suluh tiba-tiba menyapu ke arah mereka.' },
-      { type: 'dialogue', speaker: 'Tidak dikenali', text: 'Siapa dekat sana?' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Lari.' },
+    id:'courage',number:7,day:'Wednesday',phase:'Strategic escalation',time:'18:20',remaining:'13 HOURS REMAINING',title:'The CEO Pushback',image:'assets/restructuring-scene-07.jpg',
+    alt:'Maya, CEO Elena and CFO Raj negotiate late at night over the final restructuring proposal.',
+    narration:'Strategic HR reaches its most difficult point when analysis becomes advice and advice becomes accountability. The question is no longer whether you understand the risks. It is whether you are prepared to defend your judgement when powerful stakeholders want something simpler.',
+    intro:[`Elena closes the door. Raj is already in the room. Finance recommends 420–460 eliminations, at least $42m annual savings, five-month implementation and local leader discretion.`, `Elena wants a number the market can understand. She asks whether you can support Finance publicly.`],
+    dialogue:[['Elena', 'How many positions?'], ['Maya', 'The answer depends on the architecture and the risks the board is willing to accept.'], ['Elena', 'The market will understand a number. It will not understand an HR framework.'], ['Elena', 'Can you support Finance’s proposal publicly?']],
+    evidence:['finance_recommendation'],
+    question:'Defend, revise or escalate?',
+    reasoning:'Write a 90-second argument: recommendation, strongest evidence, trade-off, most important risk, mitigation and measure of success.',
+    hint:'Executive alignment has value. So does visible dissent when material risks remain unresolved. Test whether a hybrid preserves principles or merely obscures conflict.',
+    options:[
+      {id:'A',label:"Accept Finance's proposal",detail:'Support it publicly despite your reservations.',effects:{financial:14,capability:-11,trust:-6,risk:12},consequence:'Executive unity improves. Your strategic influence falls and several risks identified during analysis remain unresolved.'},
+      {id:'B',label:'Defend your recommendation',detail:'Refuse to endorse a strategy you believe creates excessive risk.',effects:{financial:-2,capability:8,trust:6,risk:-3},consequence:'Elena says, “Then you’d better convince the board.” Your credibility now depends on the quality of your argument.'},
+      {id:'C',label:'Negotiate a hybrid',detail:'Commit to savings, not a fixed headcount; require capability and governance controls.',effects:{financial:9,capability:10,trust:7,risk:-11},consequence:'Elena reluctantly agrees. Raj insists on hard financial milestones. The proposal becomes more complex, but potentially more resilient.'},
+      {id:'D',label:'Escalate competing proposals',detail:'Ask Finance and HR to present the strategic disagreement to the board.',effects:{financial:-3,capability:5,trust:4,risk:2},consequence:'Elena views the move as politically aggressive. The strategic trade-offs will, however, be visible to directors.'},
     ],
-    next: 'P1-S08', continueLabel: 'LARI',
-  },
-  {
-    id: 'P1-S07B', number: 7, title: 'Daniel Sudah Tahu',
-    location: 'Jeti lama', time: '11.58 malam', image: ASSETS.jetty,
-    alt: 'Daniel merakam satu pertemuan rahsia di jeti lama dalam hujan.', tone: 'night', branch: 'B',
-    entryEffects: { evidence: 1 }, entryFlags: ['HAFIZ_KNOWS_DANIEL'],
-    chunks: [
-      { type: 'narration', text: 'Mereka menemui Daniel berdiri di belakang sebatang pokok. Dia sedang merakam pertengkaran di hujung jeti.' },
-      { type: 'dialogue', speaker: 'Aiman', text: 'Apa kau buat?' },
-      { type: 'dialogue', speaker: 'Hafiz', text: 'Telefon tu bukan hak kau.' },
-      { type: 'dialogue', speaker: 'Hafiz', text: 'Daniel!' },
-      { type: 'narration', text: 'Semua membeku. Lelaki kedua berpaling. Lampu suluh menyapu ke arah mereka.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Lari!' },
-      { type: 'beat', text: 'Sekarang mereka tahu: Hafiz memang mengenali Daniel.' },
-    ],
-    next: 'P1-S08', continueLabel: 'LARI',
-  },
-  {
-    id: 'P1-S07C', number: 7, title: 'Dua Cerita Berbeza',
-    location: 'Jalan pulang ke homestay', time: '11.58 malam', image: ASSETS.jetty, imagePosition: 'left center',
-    alt: 'Jalan kampung yang gelap dan basah menuju homestay di Pulau Tioman.', tone: 'night', branch: 'C',
-    chunks: [
-      { type: 'narration', text: 'Sara dan Mei Lin baru separuh jalan ke homestay apabila telefon Sara berbunyi.' },
-      { type: 'phone', sender: 'Aiman', messages: ['CALL ME NOW', "DON'T COME HERE"], time: '11.58 malam' },
-      { type: 'dialogue', speaker: 'Mei Lin', text: 'Something happened?' },
-      { type: 'narration', text: 'Kemudian bunyi jeritan datang dari arah resort. Jauh, tetapi jelas. Mereka berpaling.' },
-    ],
-    choices: [
-      { id: 'P1-S07C-A', label: 'Kembali ke resort', detail: 'Cari Aiman dan yang lain sekarang.', next: 'P1-S08' },
-      { id: 'P1-S07C-B', label: 'Hubungi Aiman', detail: 'Tiada jawapan. Mereka perlu pergi juga.', next: 'P1-S08' },
-      { id: 'P1-S07C-C', label: 'Minta bantuan Pak Razak', detail: 'Sebut jeti lama dan lihat reaksinya.', next: 'P1-S08', flags: ['PAK_RAZAK_KNOWS_JETTY'] },
-    ],
-  },
-  {
-    id: 'P1-S08', number: 8, title: 'Jatuh',
-    location: 'Jeti lama', time: '12.08 pagi', image: ASSETS.jetty,
-    alt: 'Hafiz berlari di atas jeti kayu licin menuju lima remaja yang terkejut.', tone: 'danger',
-    chunks: [
-      { type: 'narration', text: 'Hujan menjadikan papan jeti licin. Hafiz berlari ke arah mereka, atau mungkin dia melarikan diri daripada lelaki di belakangnya.' },
-      { type: 'narration', text: 'Arjun berdiri di laluan sempit. Hafiz menjerit sesuatu. Dalam hujan, perkataan itu tidak jelas.' },
-      { type: 'narration', text: 'Tubuh mereka bertembung. Hafiz kehilangan imbangan. Aiman cuba mencapai lengannya.' },
-      { type: 'beat', text: 'Jari mereka bersentuhan. Kemudian terlepas.' },
-      { type: 'impact', text: 'PLAK!' },
-      { type: 'dialogue', speaker: 'Arjun', text: 'Aku... aku tak sengaja.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Kita kena call polis.' },
-      { type: 'narration', text: 'Lelaki tadi sudah hilang. Di tingkat atas resort, satu cahaya bergerak. Seseorang masih memerhati.' },
-    ],
-    choices: [
-      { id: 'P1-S08-A', label: 'Telefon polis sekarang', detail: 'Laporkan apa yang berlaku sebelum bukti hilang.', next: 'P1-S09', effects: { evidence: 1, danger: 2 }, flags: ['POLICE_CONTACTED'] },
-      { id: 'P1-S08-B', label: 'Cari Hafiz dahulu', detail: 'Periksa bawah jeti dan sepanjang pantai.', next: 'P1-S09', effects: { evidence: 2, danger: 1 }, flags: ['SEARCHED_HAFIZ'] },
-      { id: 'P1-S08-C', label: 'Panik dan pulang', detail: 'Tinggalkan jeti sebelum orang tadi kembali.', next: 'P1-S09', effects: { trust: -2, danger: 1 }, flags: ['LEFT_HAFIZ'] },
-    ],
-  },
-  {
-    id: 'P1-S09', number: 9, title: 'Telefon Dalam Lumpur',
-    location: 'Laluan dari jeti lama', time: '12.19 pagi', image: ASSETS.hero, imagePosition: 'center bottom',
-    alt: 'Sebuah telefon bercahaya terletak di atas papan jeti yang basah.', tone: 'danger',
-    chunks: [
-      { type: 'narration', text: 'Semasa mereka meninggalkan jeti, Sara terpijak sesuatu. Skrin telefon muncul dari lopak lumpur.' },
-      { type: 'narration', text: 'Telefon itu retak. Wallpaper menunjukkan Hafiz bersama seorang wanita berusia sekitar enam puluh tahun.' },
-      { type: 'phone', sender: 'Telefon Hafiz', messages: ['UPLOAD COMPLETE', '1 FILE SENT'], time: '12.19 pagi' },
-      { type: 'narration', text: 'Sara memandang yang lain. Tiada siapa melihatnya. Dia mempunyai beberapa saat sahaja.' },
-    ],
-    choices: [
-      { id: 'P1-S09-A', label: 'Tunjukkan kepada semua', detail: 'Biarkan kumpulan menentukan langkah seterusnya.', next: 'P1-S10', effects: { trust: 1, evidence: 1 }, flags: ['HAFIZ_PHONE_SHARED'] },
-      { id: 'P1-S09-B', label: 'Simpan secara senyap', detail: 'Sara mahu satu perkara yang hanya dia tahu.', next: 'P1-S10', flags: ['SARA_SECRET'], inventory: ['Telefon Hafiz'] },
-      { id: 'P1-S09-C', label: 'Tinggalkan telefon', detail: 'Jangan bawa pulang sesuatu yang berbahaya.', next: 'P1-S10', effects: { danger: 2 }, flags: ['PHONE_TAKEN_BY_UNKNOWN'] },
-    ],
-  },
-  {
-    id: 'P1-S10', number: 10, title: 'Malam Tanpa Tidur',
-    location: 'Homestay, Kampung Tekek', time: '12.56 pagi', image: ASSETS.tekek, imagePosition: '15% center',
-    alt: 'Homestay kayu di Kampung Tekek yang kini terasa sunyi dan terasing.', tone: 'claustrophobic',
-    chunks: [
-      { type: 'narration', text: 'Homestay terasa berbeza apabila mereka kembali. Lampu ruang tamu terlalu terang. Baju basah tergantung. Hujan mengetuk bumbung.' },
-      { type: 'dialogue', speaker: 'Arjun', text: 'Aku bunuh dia.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Kau tak bunuh sesiapa.' },
-      { type: 'dialogue', speaker: 'Sara', text: 'Kenapa Hafiz kenal kau?' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Aku pernah message dia. Aku jumpa contact dia online.' },
-      { type: 'narration', text: 'Daniel enggan menjelaskan sebabnya. Kemudian ada ketukan di pintu. Tok. Tok. Tok.' },
-      { type: 'dialogue', speaker: 'Pak Razak', text: 'Kamu semua okay? Kamu pergi mana tadi?' },
-      { type: 'beat', text: 'Dia melihat kasut berlumpur dan pakaian mereka yang basah.' },
-    ],
-    choices: [
-      { id: 'P1-S10-A', label: 'Cerita semuanya', detail: 'Percayakan Pak Razak walaupun reaksinya pelik.', next: 'P1-S11', effects: { trustPakRazak: 1, danger: 1 }, flags: ['PAK_RAZAK_TOLD'] },
-      { id: 'P1-S10-B', label: 'Bohong', detail: 'Katakan mereka cuma berjalan di pantai.', next: 'P1-S11', effects: { trust: -1 }, flags: ['PAK_RAZAK_NOT_TOLD'] },
-      { id: 'P1-S10-C', label: 'Tanya tentang Hafiz', detail: 'Lihat sama ada Pak Razak mengenalinya.', next: 'P1-S11', effects: { evidence: 1 }, flags: ['PAK_RAZAK_KNOWS_HAFIZ'] },
-    ],
-  },
-  {
-    id: 'P1-S11', number: 11, title: 'Pukul 3.17 Pagi',
-    location: 'Homestay, Kampung Tekek', time: '3.17 pagi', image: ASSETS.hero, imagePosition: 'center',
-    alt: 'Jalan kampung dan jeti di Pulau Tioman dalam kegelapan sebelum subuh.', tone: 'paranoia',
-    chunks: [
-      { type: 'narration', text: 'Tiada siapa benar-benar tidur. Pukul 3.17 pagi, Mei Lin terjaga apabila telefon Daniel bergetar berkali-kali di ruang tamu.' },
-      { type: 'narration', text: 'Telefon itu berada di atas meja. Daniel tiada. Pintu depan terbuka sedikit.' },
-      { type: 'phone', sender: 'Nombor tidak dikenali', messages: ['JETI. SEKARANG.'], time: '3.17 pagi' },
-      { type: 'beat', text: 'Jejak air menuju keluar dari homestay.' },
-    ],
-    choices: [
-      { id: 'P1-S11-A', label: 'Kejutkan semua', detail: 'Cari Daniel sebelum dia sampai ke jeti.', next: 'P1-S12', effects: { trustDaniel: -1, danger: 1 }, flags: ['DANIEL_STOPPED_AT_317'] },
-      { id: 'P1-S11-B', label: 'Ikut Daniel secara senyap', detail: 'Mei Lin mahu tahu siapa yang menunggunya.', next: 'P1-S12', effects: { evidence: 2, danger: 2 }, flags: ['MEILIN_SAW_NIGHT_MEETING'] },
-      { id: 'P1-S11-C', label: 'Biarkan Daniel pergi', detail: 'Mei Lin terlalu takut untuk mengikutinya.', next: 'P1-S12', flags: ['DANIEL_HAS_ENVELOPE'] },
-    ],
-  },
-  {
-    id: 'P1-S12', number: 12, title: 'Pagi Selepas Itu',
-    location: 'Kampung Tekek', time: '8.21 pagi', image: ASSETS.tekek,
-    alt: 'Kehidupan kampung yang cerah dan biasa diteruskan di Pulau Tioman.', tone: 'false-calm',
-    chunks: [
-      { type: 'narration', text: 'Pagi datang terlalu cepat. Langit cerah, burung berbunyi, orang menyewa motosikal dan kanak-kanak bermain berhampiran pantai.' },
-      { type: 'beat', text: 'Dunia bertindak seperti tiada apa-apa berlaku.' },
-      { type: 'narration', text: 'Arjun tidak mahu sarapan. Sara memeriksa berita tempatan. Tiada apa tentang Hafiz.' },
-      { type: 'dialogue', speaker: 'Pak Razak', text: 'Kadang-kadang dia pergi Juara. Kadang dua tiga hari tak nampak.' },
-      { type: 'dialogue', speaker: 'Sara', text: 'Pak cik tak risau?' },
-      { type: 'dialogue', speaker: 'Pak Razak', text: 'Budak sini pandai jaga diri.' },
-      { type: 'narration', text: 'Pak Razak berhenti menyiram pokok. Dia melihat Daniel.' },
-      { type: 'dialogue', speaker: 'Pak Razak', text: 'Kamu naik feri pukul berapa?' },
-    ],
-    next: 'P1-S13', continueLabel: 'TINGGALKAN TIOMAN',
-  },
-  {
-    id: 'P1-S13', number: 13, title: 'Perjalanan Pulang',
-    location: 'Feri ke Mersing', time: '11.46 pagi', image: ASSETS.reunion, imagePosition: '75% center',
-    alt: 'Feri bergerak pulang ke Mersing merentasi laut yang tenang.', tone: 'false-calm',
-    chunks: [
-      { type: 'narration', text: 'Tiada siapa mengambil banyak gambar dalam perjalanan pulang. Arjun duduk bersendirian. Mei Lin memandang laut. Sara tidur tetapi kerap terjaga.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Aku nampak orang lain malam tadi.' },
-      { type: 'dialogue', speaker: 'Aiman', text: 'Dekat jeti?' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Dekat tingkat atas resort. Aku rasa aku ada gambar.' },
-      { type: 'narration', text: 'Daniel membuka galeri kameranya. Gambar itu hilang. Dia mengeluarkan kad memori dan menyimpannya di dalam beg.' },
-      { type: 'dialogue', speaker: 'Daniel', text: 'Nanti bila sampai Mersing aku explain semuanya.' },
-      { type: 'beat', text: 'Itulah kali terakhir Aiman mendengar Daniel berkata perkara itu.' },
-    ],
-    next: 'P1-S14', continueLabel: 'TIBA DI MERSING',
-  },
-  {
-    id: 'P1-S14', number: 14, title: 'Empat',
-    location: 'Terminal Feri Mersing', time: '2.18 petang', image: ASSETS.missing,
-    alt: 'Empat remaja menemui beg Daniel dan sebuah Polaroid di Terminal Feri Mersing.', tone: 'final',
-    entryInventory: ['Polaroid Jeti'],
-    chunks: [
-      { type: 'narration', text: 'Terminal Mersing sibuk. Orang berebut mengambil bagasi, Arjun membeli air, Sara mencari e-hailing dan Mei Lin menerima panggilan ibunya.' },
-      { type: 'narration', text: 'Aiman berpaling selama mungkin tiga puluh saat. Apabila dia melihat semula, Daniel tiada.' },
-      { type: 'narration', text: 'Lima minit. Sepuluh minit. Lima belas. Telefon Daniel dimatikan. Beg galas dan kameranya masih ada. Kad memori sudah hilang.' },
-      { type: 'narration', text: 'Sebuah Polaroid terletak di atas beg. Gambar mereka berlima di jeti, diambil dari arah resort.' },
-      { type: 'message', text: 'KAMU TINGGALKAN SEORANG DI DALAM AIR.' },
-      { type: 'message', text: 'SEKARANG SEORANG LAGI MILIK AKU.' },
-      { type: 'narration', text: 'Telefon Aiman bergetar. Nombor tidak dikenali menghantar gambar Daniel di dalam sebuah kenderaan. Kepalanya tunduk.' },
-      { type: 'message', text: 'JANGAN CARI DIA.' },
-      { type: 'beat', text: 'Di tengah-tengah ratusan wajah, mereka kini tinggal berempat.' },
-    ],
-    next: 'ENDING', continueLabel: 'LIHAT AKIBAT',
+    transition:'Thursday, 08:00. The board chair looks directly at you: “Dr. Chen, what exactly are you recommending?”'
   },
 ];
 
 const ENDINGS = {
-  'P1-E1': {
-    code: '1A', title: 'Polis Sudah Tahu', image: ASSETS.missing,
-    chunks: [
-      'Polis tiba di terminal selepas mereka melaporkan Daniel hilang. Seorang anggota memeriksa Polaroid itu lama-lama.',
-      '“Kalau gambar ini diambil malam tadi di Tioman, macam mana orang yang mengambilnya tahu kamu akan berada di terminal ini hari ini?”',
-      'Di luar terminal, sebuah SUV hitam bergerak perlahan.',
-      'Seseorang sudah mengikuti mereka sejak pulau.',
-    ],
-  },
-  'P1-E2': {
-    code: '1B', title: 'Telefon Itu', image: ASSETS.hero,
-    chunks: [
-      'Malam itu, Sara mengunci pintu biliknya dan mengeluarkan telefon Hafiz. Skrin menyala sendiri.',
-      '“Saya tahu telefon itu dengan awak.” Kemudian: “Daniel juga tahu.”',
-      'Mesej ketiga tiba. “Sekarang Daniel dengan kami.”',
-      'Kamera depan telefon terbuka. Sara melihat wajahnya di skrin, dan tingkap bilik di belakangnya.',
-    ],
-  },
-  'P1-E3': {
-    code: '1C', title: 'Video Yang Tidak Pernah Dirakam', image: ASSETS.tekek,
-    chunks: [
-      'Di rumah, Mei Lin membuka galerinya. Ada video baharu dengan masa 3.41 pagi, Tioman.',
-      'Rakaman menunjukkan Arjun, Aiman, Sara dan Mei Lin sendiri sedang tidur di homestay.',
-      'Seseorang yang lain memegang telefon. Kamera bergerak perlahan ke arah pintu bilik Daniel.',
-      'Seorang lelaki berdiri di dalam. Mereka tidak pernah bersendirian malam itu.',
-    ],
-  },
-  'P1-E4': {
-    code: '1D', title: 'Orang Keenam', image: ASSETS.hero,
-    chunks: [
-      'Aiman memperbesar Polaroid. Jauh di tingkat atas resort, ada seorang manusia. Bukan Hafiz. Bukan lelaki di jeti.',
-      'Pada pergelangan tangannya ada jam digital besar. Aiman teringat suara elektronik: “Twelve midnight.”',
-      'Telefon Aiman bergetar. “Jangan zoom gambar tu.”',
-      'Mesej seterusnya muncul. “Aku nampak kau.” Aiman perlahan-lahan mengangkat muka.',
-    ],
-  },
-  'P1-E5': {
-    code: '1E', title: 'Daniel Tidak Diculik?', image: ASSETS.missing,
-    chunks: [
-      'Mei Lin teringat lelaki yang Daniel jumpa pada pukul 3.17 pagi. Sampul itu. Ayat, “Ini yang tinggal.”',
-      'Dalam gambar yang sempat dirakamnya, Daniel tidak kelihatan takut. Dia kelihatan seperti sedang menunggu.',
-      'Dalam gambar dari kenderaan, tangan Daniel tidak diikat. Pintu di sebelahnya terbuka. Dia boleh keluar.',
-      'Mei Lin memandang yang lain. “Apa kalau Daniel tak diculik?”',
-    ],
-  },
+  renewal:{title:'Strategic Renewal',tone:'Strong',summary:'You achieve approximately $43m in annualised savings. About 255 positions are removed alongside delayering, contractor reductions and facility consolidation. Helios renews; critical capability remains above threshold.',details:['Twelve months later, division margin reaches 8.6%.','Employee trust falls during implementation but begins recovering after six months.','Your pathway integrated finance, organisation design, capability, evidence quality, fairness and adaptive risk management.'],lesson:'Restructuring can improve both cost structure and strategic coherence when interventions are evaluated as a system.'},
+  numbers:{title:"The Numbers Work, the Organisation Doesn't",tone:'Mixed',summary:'Aurelis achieves $45m in savings and the board initially praises the restructuring. Within five months, 11 critical specialists resign and Helios moves part of its contract.',details:['Project delays and recruitment costs rise.','Remaining engineers report severe workload pressure.','Eighteen months later, the organisation has rehired or contracted capabilities it removed.'],lesson:'Cost reduction and value creation are related, but they are not identical.'},
+  trust:{title:'The Trust Deficit',tone:'Partial',summary:'The financial and capability logic is broadly defensible, but communication and selection choices dominate employee perceptions.',details:['Rumours persist for months.','Voluntary turnover rises among employees who were never at risk.','Exit interviews repeatedly say: “I stopped trusting leadership.”'],lesson:'How restructuring is implemented can become strategically important independent of what is implemented.'},
+  collapse:{title:'Capability Collapse',tone:'Weak',summary:'Approximately 470 positions disappear and Finance reports $44.8m annualised savings. Three months later, an engineering failure delays a major customer installation.',details:['Two eliminated specialists held tacit knowledge that was never transferred.','Helios does not fully renew.','The division enters another restructuring nine months later.'],lesson:'Positions can be removed immediately. Capabilities cannot necessarily be rebuilt at the same speed.'},
+  traction:{title:'Transformation Without Traction',tone:'Limited',summary:'The strategy protects future capability and redesigns roles, but fails to produce sufficient near-term savings. The board loses confidence.',details:['Finance intervenes with a blunt second round of cuts.','Employees experience two waves of uncertainty.','Promising transformation programmes are cancelled.'],lesson:'Strategic sophistication does not remove financial constraints or the need for implementable sequencing.'},
+  procedure:{title:'The Procedural Crisis',tone:'Weak',summary:'The restructuring becomes mired in disputes as managers use inconsistent criteria and documentation fails under scrutiny.',details:['Employee representatives challenge multiple decisions.','Implementation slows substantially.','Transition costs, consulting fees and retention interventions exceed forecast.'],lesson:'Decision quality depends on both the answer and the process used to reach it.'},
+  adaptive:{title:'The Adaptive Turnaround',tone:'Strong · with trade-offs',summary:'Aurelis implements an initial $34m package with explicit triggers. When Helios renews, the company avoids a second large workforce reduction.',details:['Improved demand and facility consolidation close most of the gap.','Employees initially dislike uncertainty but later see that conditional decisions prevented unnecessary cuts.','Clear triggers convert uncertainty from an excuse into a governed strategy.'],lesson:'Strategic flexibility creates value when uncertainty is genuine and decision rules are explicit.'},
+  principled:{title:'The Principled Defeat',tone:'Organisationally mixed',summary:'You challenge the dominant view with substantial evidence of capability risk. The board nevertheless selects Finance’s aggressive plan.',details:['Six months later, some risks you predicted emerge.','The financial outcome remains stronger than you expected.','The post-implementation review cites your analysis extensively.'],lesson:'Strategic HR leadership is not winning every argument; it is improving the quality of organisational decision-making.'},
 };
 
-function freshState(discoveredEndings = readEndings()) {
-  return {
-    started: false,
-    currentSceneId: 'P1-S01',
-    revealed: 0,
-    trust: 3,
-    evidence: 0,
-    danger: 0,
-    trustDaniel: 0,
-    trustPakRazak: 0,
-    trustAimanSara: 0,
-    flags: {},
-    inventory: [],
-    visitedScenes: [],
-    decisionHistory: [],
-    ending: null,
-    completed: false,
-    discoveredEndings,
-    textScale: 1,
-    soundOn: false,
-  };
-}
-
-function readEndings() {
-  try { return JSON.parse(localStorage.getItem(ENDINGS_KEY)) || []; }
-  catch { return []; }
-}
-
-function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
-    return saved ? { ...freshState(), ...saved, flags: { ...(saved.flags || {}) }, inventory: [...(saved.inventory || [])] } : freshState();
-  } catch { return freshState(); }
-}
-
-let state = loadState();
-let modal = null;
+const initialState = () => ({screen:'mode',mode:'expert',scene:0,scores:{financial:55,capability:55,trust:55,risk:40},decisions:[],viewed:[],board:null,ending:null,modal:null,muted:false});
+let state = initialState();
+let selectedOption = null;
+let speech = null;
 let toastTimer = null;
-let audioContext = null;
-let ambience = null;
 
-function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
-function sceneById(id) { return SCENES.find((scene) => scene.id === id); }
-function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
-function announce(message) { announcer.textContent = ''; requestAnimationFrame(() => { announcer.textContent = message; }); }
-function saveState(silent = false) {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
-  document.documentElement.style.setProperty('--text-scale', state.textScale);
-  if (!silent) showToast('Perjalanan disimpan', 'save');
+function esc(value=''){return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
+function clamp(v){return Math.max(0,Math.min(100,v));}
+function save(){localStorage.setItem(SAVE_KEY,JSON.stringify({...state,modal:null}));}
+function load(){try{return JSON.parse(localStorage.getItem(SAVE_KEY));}catch{return null;}}
+function announce(text){announcer.textContent='';setTimeout(()=>announcer.textContent=text,30);}
+function toast(text){document.querySelector('.toast')?.remove();const el=document.createElement('div');el.className='toast';el.textContent=text;document.body.append(el);requestAnimationFrame(()=>el.classList.add('visible'));clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.remove(),2600);}
+function status(key,value){const found=SCORE_LABELS[key].find(([,max])=>value<max);return found?found[0]:'—';}
+function scoreDirection(v){return v>=70?'good':v<40?'danger':'watch';}
+function modeAllowsDetail(){return ['practice','challenge','explorer'].includes(state.mode);}
+function unlockedEvidence(){const count=Math.min(state.scene+1,SCENES.length);return [...new Set(SCENES.slice(0,count).flatMap(scene=>scene.evidence))];}
+function decisionFor(id){return state.decisions.find(d=>d.sceneId===id);}
+function reasoningQuality(){if(!state.decisions.length)return 0;return state.decisions.reduce((sum,d)=>sum+Math.min(d.reasoning.trim().length/180,1),0)/state.decisions.length;}
+
+function header(){
+  const complete=['board','debrief','road','report'].includes(state.screen);
+  const scene=complete?{remaining:'0 HOURS REMAINING',day:'Thursday',phase:state.screen==='board'?'Board decision':'Learning review'}:SCENES[Math.min(state.scene,SCENES.length-1)];
+  const active=complete?7:state.scene;
+  return `<header class="command-bar"><button class="brand" data-action="home"><span class="brand-mark">A</span><span>Aurelis Systems<small>Board dossier · confidential</small></span></button><div class="time-spine" aria-label="Simulation progress"><span>${scene.remaining}</span><div>${Array.from({length:8},(_,i)=>`<i class="${i<active?'done':i===active?'current':''}"></i>`).join('')}</div><small>${scene.day} · ${scene.phase}</small></div><nav><button data-action="evidence" class="nav-btn">Evidence <b>${unlockedEvidence().length}</b></button><button data-action="audio" class="nav-btn">Narration</button><button data-action="menu" class="nav-btn">Menu</button></nav></header>`;
 }
 
-function saveCheckpoint(sceneId) {
-  const checkpoints = readCheckpoints();
-  const snapshot = JSON.parse(JSON.stringify(state));
-  snapshot.currentSceneId = sceneId;
-  snapshot.revealed = 0;
-  checkpoints[sceneId] = snapshot;
-  localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(checkpoints));
+function renderMode(){
+  const existing=load();
+  app.innerHTML=`<main id="main" class="mode-page"><section class="mode-hero"><img class="mode-hero-image" src="assets/opening-background.jpg" alt="A diverse executive team debates workforce evidence around a boardroom table in Kuala Lumpur."><div class="mode-hero-scrim"></div><p class="eyebrow">Aurelis Systems · Executive simulation</p><p class="mode-image-caption"><span>Monday · 07:12</span>The board’s mandate arrives.</p><h1>The <span>72-Hour</span><br>Restructuring</h1><p class="mode-deck">A $42m mandate. A workforce of 4,850. One client relationship that could erase every saving. You are the Chief People Officer—and the board meets Thursday.</p><div class="deadline-rule"><b>MON 07:12</b><span></span><b>THU 08:00</b></div></section><section class="mode-select"><div><p class="section-label">01 · Choose your learning mode</p><h2>How much support should the room give you?</h2></div><div class="mode-grid">${Object.entries(MODES).map(([id,m])=>`<button class="mode-card ${state.mode===id?'selected':''}" data-mode="${id}"><span>${id==='expert'?'Recommended':id==='assessment'?'Formal':'Mode'}</span><strong>${m.name}</strong><small>${m.note}</small><i aria-hidden="true"></i></button>`).join('')}</div><div class="mode-actions">${existing?.decisions?.length?`<button class="secondary" data-action="resume">Resume saved session <span>Scene ${Math.min(existing.scene+1,8)} of 8</span></button>`:''}<button class="primary" data-action="briefing">Enter briefing <span>→</span></button></div></section></main>`;
 }
 
-function readCheckpoints() {
-  try { return JSON.parse(localStorage.getItem(CHECKPOINT_KEY)) || {}; }
-  catch { return {}; }
+function renderBriefing(){
+  app.innerHTML=`<main id="main" class="briefing-page"><section class="briefing-cover"><button class="text-back" data-action="back-mode">← Change mode</button><div><p class="eyebrow">Strategic HRM under pressure</p><h1>The 72-Hour<br>Restructuring</h1><p>You are <strong>Dr. Maya Chen</strong>, Chief People Officer of Aurelis Systems. You joined eight weeks ago. At 07:12 Monday, the CEO requests an emergency meeting.</p></div><dl><div><dt>Level</dt><dd>MBA / Postgraduate</dd></div><div><dt>Duration</dt><dd>60–75 minutes</dd></div><div><dt>Your role</dt><dd>Chief People Officer</dd></div><div><dt>Mode</dt><dd>${MODES[state.mode].name}</dd></div></dl></section><section class="briefing-body"><div class="brief-card urgent"><span>The board mandate</span><strong>Reduce annual operating expenditure by approximately <em>$42 million.</em></strong><p>Finance believes this means eliminating roughly 450 positions. Operations believes that could destroy strategically important capability.</p></div><div class="outcomes"><p class="section-label">Learning outcomes</p><ol><li>Analyse workforce, financial and organisational evidence.</li><li>Evaluate interventions across financial, capability, ethical, operational and stakeholder criteria.</li><li>Formulate a strategically aligned restructuring strategy.</li><li>Defend decisions using evidence, assumptions, trade-offs and risk.</li><li>Assess short- and long-term consequences.</li></ol></div><div class="instructions"><p class="section-label">How the simulation works</p><p>Review evidence artefacts, select a plausible action and record your reasoning. Your pathway changes later information, stakeholder reactions and the ending. There may be no perfect solution.</p><div class="dimension-row"><span>Financial viability</span><span>Strategic capability</span><span>Workforce trust</span><span>Organisational risk</span></div></div><button class="primary begin" data-action="begin">Begin the 72 Hours <span>→</span></button></section></main>`;
 }
 
-function latestCheckpoint() {
-  const checkpoints = readCheckpoints();
-  return ['P1-S11', 'P1-S08', 'P1-S06'].map((id) => checkpoints[id]).find(Boolean) || null;
+function dialogueHTML(lines){return lines.map(([speaker,text])=>`<div class="dialogue"><span>${esc(speaker)}</span><blockquote>“${esc(text)}”</blockquote></div>`).join('');}
+function evidenceCards(scene){return scene.evidence.map(id=>{const e=EVIDENCE[id];const viewed=state.viewed.includes(id);return `<button class="evidence-card ${viewed?'viewed':''}" data-evidence="${id}"><span>${e.type}</span><strong>${e.title}</strong><small>${viewed?'Reviewed':'Open artefact'} ↗</small></button>`}).join('');}
+function sceneStatus(){
+  const raw=state.mode==='practice'||state.mode==='explorer';
+  return `<div class="signal-strip"><div><span>Financial position</span><strong class="${scoreDirection(state.scores.financial)}">${status('financial',state.scores.financial)}${raw?` · ${state.scores.financial}`:''}</strong></div><div><span>Capability position</span><strong class="${scoreDirection(state.scores.capability)}">${status('capability',state.scores.capability)}${raw?` · ${state.scores.capability}`:''}</strong></div><div><span>Workforce confidence</span><strong class="${scoreDirection(state.scores.trust)}">${status('trust',state.scores.trust)}${raw?` · ${state.scores.trust}`:''}</strong></div><div><span>Organisational risk</span><strong class="${scoreDirection(100-state.scores.risk)}">${status('risk',state.scores.risk)}${raw?` · ${state.scores.risk}`:''}</strong></div></div>`;
 }
 
-function startStory(reset = false) {
-  if (reset) {
-    const endings = readEndings();
-    state = freshState(endings);
+function renderScene(){
+  stopSpeech();selectedOption=null;const scene=SCENES[state.scene];const saved=decisionFor(scene.id);
+  app.innerHTML=`${header()}<main id="main" class="scene-page"><section class="scene-hero"><img src="${scene.image}" alt="${scene.alt}"><div class="scene-shade"></div><div class="scene-meta"><span>Scene ${scene.number} of 8</span><time>${scene.day.toUpperCase()} · ${scene.time}</time><h1>${scene.title}</h1></div><button class="narrate-pill" data-action="play-narration">▶ Play narration</button></section><section class="case-layout"><article class="case-file"><header><p class="section-label">Situation report · ${scene.time}</p><h2>${scene.title}</h2></header>${scene.intro.map(p=>`<p class="narrative">${p}</p>`).join('')}<div class="dialogue-stack">${dialogueHTML(scene.dialogue)}</div><div class="evidence-shelf"><div><p class="section-label">Evidence released</p><span>${scene.evidence.length} new artefact${scene.evidence.length>1?'s':''}</span></div>${evidenceCards(scene)}</div></article><aside class="decision-panel"><div class="decision-pin"><p class="section-label">Decision ${scene.number}</p><h2>${scene.question}</h2>${state.mode==='practice'?`<div class="coach-note"><span>Practice prompt</span>${scene.hint}</div>`:''}<div class="option-list" role="radiogroup" aria-label="${esc(scene.question)}">${scene.options.map(o=>`<button role="radio" aria-checked="false" class="option" data-option="${o.id}"><span>${o.id}</span><div><strong>${o.label}</strong><small>${o.detail}</small></div></button>`).join('')}</div><label class="reasoning-label" for="reasoning"><span>Your reasoning · required</span>${scene.reasoning}</label><textarea id="reasoning" rows="6" placeholder="Use evidence. Name assumptions. Make the trade-off explicit.">${saved?esc(saved.reasoning):''}</textarea><p class="field-error" hidden>Record at least 20 characters of reasoning before continuing.</p><button class="primary record" data-action="record">Record decision <span>→</span></button><small class="autosave">Saved automatically on this device.</small></div></aside></section>${sceneStatus()}</main><div class="toast" aria-hidden="true"></div>`;
+}
+
+function renderConsequence(){
+  const scene=SCENES[state.scene];const d=decisionFor(scene.id);const option=scene.options.find(o=>o.id===d.optionId);
+  const feedback=state.mode==='assessment'||state.mode==='expert'?'':`<div class="learning-signal"><span>${state.mode==='practice'?'Practice interpretation':'Decision signal'}</span><p>${scene.hint}</p></div>`;
+  app.innerHTML=`${header()}<main id="main" class="consequence-page"><section><p class="decision-seal">Decision ${scene.number} recorded</p><h1>${option.label}</h1><blockquote>${option.consequence}</blockquote><div class="transition"><span>Incoming</span><p>${scene.transition}</p></div>${feedback}${modeAllowsDetail()?sceneStatus():''}<div class="consequence-actions">${['practice','explorer'].includes(state.mode)?'<button class="secondary" data-action="reconsider">Reconsider decision</button>':''}<button class="primary" data-action="continue">${state.scene===6?'Enter the boardroom':'Continue'} <span>→</span></button></div></section><aside><img src="${scene.image}" alt=""><div><span>${scene.day} · ${scene.time}</span><strong>${scene.remaining}</strong></div></aside></main>`;
+}
+
+function renderBoard(){
+  stopSpeech();
+  app.innerHTML=`${header()}<main id="main" class="board-page"><section class="board-hero"><img src="assets/restructuring-scene-08.jpg" alt="Maya presents her restructuring recommendation to the Aurelis board."><div></div><p>Thursday · 08:00</p><h1>The Boardroom</h1><blockquote>“Dr. Chen, what exactly are you recommending?”</blockquote></section><form id="board-form" class="board-form"><header><p class="section-label">Final board challenge</p><h2>Build the recommendation you are prepared to defend.</h2><p>You have ten minutes. Cost savings alone cannot define success.</p></header><div class="form-grid"><label><span>Problem definition</span><small>What problem is Aurelis actually solving?</small><textarea name="problem" required rows="3"></textarea></label><label><span>Proposed strategy</span><small>What combination of interventions do you recommend?</small><textarea name="strategy" required rows="3"></textarea></label><label><span>Savings target</span><select name="savings"><option>$30–35m staged</option><option selected>$42–43m</option><option>$44–46m</option><option>$48m+ over three years</option></select></label><label><span>Approximate workforce impact</span><select name="workforce"><option>180–220 positions</option><option selected>230–300 positions</option><option>300–420 positions</option><option>420–470 positions</option></select></label><label><span>Capability protections</span><textarea name="protections" required rows="3"></textarea></label><label><span>Selection and governance</span><textarea name="governance" required rows="3"></textarea></label></div><fieldset><legend>Three major risks</legend><div class="risk-fields"><input name="risk1" required placeholder="Risk 1"><input name="risk2" required placeholder="Risk 2"><input name="risk3" required placeholder="Risk 3"></div></fieldset><label><span>Mitigation strategy</span><textarea name="mitigation" required rows="3"></textarea></label><label><span>Success measures · at least four, including one non-financial</span><textarea name="measures" required rows="3" placeholder="Annualised savings; critical skill coverage; regrettable turnover; Helios renewal…"></textarea></label><fieldset class="philosophy"><legend>Final restructuring philosophy</legend>${[['A','Financial Reset','Prioritise guaranteed near-term savings.'],['B','Balanced Restructure','Targeted reductions plus structural savings and capability protection.'],['C','Capability Transformation','Accept lower immediate savings to redesign for future capability.'],['D','Adaptive Restructure','Initial intervention plus explicit triggers for subsequent action.']].map(([id,t,d])=>`<label><input type="radio" name="philosophy" value="${id}" ${id==='B'?'checked':''}><span><b>${id}</b><strong>${t}</strong><small>${d}</small></span></label>`).join('')}</fieldset><p class="field-error board-error" hidden>Complete every field and provide at least four measures.</p><button class="primary submit-board" type="submit">Present to the board <span>→</span></button></form></main>`;
+}
+
+function determineEnding(){
+  const s=state.scores;const picks=Object.fromEntries(state.decisions.map(d=>[d.sceneId,d.optionId]));const philosophy=state.board.philosophy;const quality=reasoningQuality();
+  if(picks.courage==='D'&&quality>.62&&['B','C','D'].includes(philosophy))return 'principled';
+  if(picks.fairness==='B'||s.risk>=76)return 'procedure';
+  if(s.capability<36||(picks.architecture==='A'&&picks.capability==='D'))return 'collapse';
+  if(s.trust<37||(picks.communication==='A'||picks.communication==='D')&&s.trust<48)return 'trust';
+  if(s.financial<44&&s.capability>66)return 'traction';
+  if(s.financial>=76&&s.capability<58)return 'numbers';
+  if(philosophy==='D'&&picks.adaptation==='D'&&s.capability>=55&&s.risk<68)return 'adaptive';
+  if(s.financial>=56&&s.capability>=55&&s.trust>=42&&s.risk<=68)return 'renewal';
+  if(s.financial<52)return 'traction';
+  if(s.capability<52)return 'numbers';
+  return 'renewal';
+}
+
+function renderEnding(){
+  const e=ENDINGS[state.ending];
+  app.innerHTML=`<main id="main" class="ending-page"><img src="assets/restructuring-scene-08.jpg" alt="The Aurelis boardroom after Maya’s final recommendation."><div class="ending-overlay"></div><section><p class="eyebrow">Simulation outcome · ${e.tone}</p><h1>${e.title}</h1><p class="ending-summary">${e.summary}</p><div class="outcome-grid">${e.details.map((x,i)=>`<article><span>0${i+1}</span><p>${x}</p></article>`).join('')}</div><blockquote>${e.lesson}</blockquote><div class="ending-actions"><button class="primary" data-action="debrief">Continue to Academic Debrief <span>→</span></button></div></section></main>`;
+}
+
+function selectedLabels(){return state.decisions.filter(d=>SCENES.some(s=>s.id===d.sceneId)).map(d=>{const scene=SCENES.find(s=>s.id===d.sceneId);return{scene,decision:d,option:scene.options.find(o=>o.id===d.optionId)}});}
+function conceptList(){const picks=Object.fromEntries(state.decisions.map(d=>[d.sceneId,d.optionId]));const concepts=['Strategic HRM','Workforce planning','Human capital','Organisational capability','Restructuring','Workforce analytics','Stakeholder management'];if(['A','D'].includes(picks.communication))concepts.push('Change communication');else concepts.push('Procedural transparency');if(['C','D'].includes(picks.fairness))concepts.push('Procedural justice');if(picks.adaptation==='D'||state.board.philosophy==='D')concepts.push('Scenario planning','Strategic agility');return [...new Set(concepts)];}
+function strengthWeakness(){
+  const s=state.scores;const strengths=[];const weaknesses=[];
+  if(s.capability>=60)strengths.push(['Systems thinking','You treated workforce capability as more than a payroll line.']);else weaknesses.push(['Capability reductionism','Several choices exposed tacit knowledge or scarce capability.']);
+  if(s.financial>=60)strengths.push(['Feasibility discipline','Your pathway remained connected to the economic constraint.']);else weaknesses.push(['Analysis without traction','Your future orientation outpaced near-term feasibility.']);
+  if(s.trust>=55)strengths.push(['Stakeholder judgement','You treated trust and communication as strategic inputs.']);else weaknesses.push(['Trust exposure','Communication or process choices weakened confidence.']);
+  if(s.risk<=55)strengths.push(['Governance','You added controls where evidence and manager judgement were weak.']);else weaknesses.push(['Procedural exposure','Your pathway allowed inconsistency or unmanaged secondary risk.']);
+  return {strengths,weaknesses};
+}
+
+function renderDebrief(){
+  const e=ENDINGS[state.ending];const labels=selectedLabels();const sw=strengthWeakness();
+  app.innerHTML=`${header()}<main id="main" class="debrief-page"><section class="debrief-title"><p class="eyebrow">Academic debrief</p><h1>What the 72 hours exposed</h1><p>The opening equation—required saving ÷ average employee cost = positions to eliminate—was financially legible and strategically incomplete.</p></section><nav class="debrief-nav"><a href="#what">What happened</a><a href="#critical">Critical decisions</a><a href="#concepts">HRM concepts</a><a href="#expert">Expert approach</a></nav><section id="what" class="debrief-section"><p class="section-label">What happened</p><h2>Labour was both a cost and a source of capability.</h2><div class="two-col"><p>Employees differed in replacement difficulty, tacit knowledge, customer relationships, adaptability, future relevance and cost. The simulation made those differences consequential.</p><p>Restructuring affected systems beyond payroll: customer confidence, labour supply, workload, managerial credibility, retention and organisational learning.</p></div></section><section id="critical" class="debrief-section"><p class="section-label">Your critical decision points</p><div class="decision-review">${labels.map((x,i)=>`<article><span>0${i+1}</span><div><small>${x.scene.title}</small><h3>${x.option.label}</h3><p>${academicInterpretation(x.scene.id,x.option.id)}</p></div></article>`).join('')}</div></section><section id="concepts" class="debrief-section"><p class="section-label">Relevant HRM concepts</p><div class="concept-cloud">${conceptList().map(c=>`<span>${c}</span>`).join('')}</div><div class="misconception"><h3>Misconceptions the case was designed to test</h3><ul><li>Equal treatment is always fair.</li><li>The highest salaries should be removed first.</li><li>Managers already know who should go.</li><li>Achieving the saving means restructuring succeeded.</li><li>Transparency means telling employees everything.</li></ul></div></section><section id="expert" class="debrief-section expert-grid"><div><p class="section-label">How an expert might approach it</p><h2>A more defensible process, not a perfect answer.</h2></div><ol><li>Clarify the constraint without turning it into an automatic headcount target.</li><li>Map future operating requirements and critical capabilities.</li><li>Develop multiple workforce scenarios and explicit evaluation criteria.</li><li>Add governance, fairness controls and secondary-risk modelling.</li><li>Communicate uncertainty accurately.</li><li>Define balanced metrics, contingencies and trigger points.</li></ol></section><section class="outcome-vs-learning"><article><span>Organisational outcome</span><h3>${e.title}</h3><p>${e.summary}</p></article><article><span>Learning demonstrated</span><h3>${reasoningQuality()>.7?'Highly developed':reasoningQuality()>.45?'Developing strategic judgement':'Emerging strategic judgement'}</h3><p>Reasoning quality is evaluated separately from whether the board adopted a successful pathway.</p></article></section><button class="primary debrief-next" data-action="road">Explore the Road Not Taken <span>→</span></button></main>`;
+}
+
+function academicInterpretation(sceneId,optionId){
+  const map={problem:'Problem framing shaped which interventions remained visible.',architecture:'Your architecture distributed savings, capability and execution risk differently.',capability:'This choice distinguished people, roles and organisational capability.',communication:'This choice shaped the credibility of leadership under uncertainty.',fairness:'This governed how judgement, bias and evidence entered selection.',adaptation:'This revealed whether uncertainty was predicted, ignored or governed.',courage:'This balanced executive alignment against evidence-based professional responsibility.'};
+  return map[sceneId]+' The outcome was contingent; an alternative may have shifted trade-offs rather than removed them.';
+}
+
+function renderRoad(){
+  const labels=selectedLabels();const final=PHILOSOPHIES.find(p=>p.id===state.board.philosophy);
+  app.innerHTML=`${header()}<main id="main" class="road-page"><section class="road-title"><p class="eyebrow">Counterfactual explorer</p><h1>The Road Not Taken</h1><p>Hindsight does not reveal a guaranteed superior answer. Explore how an alternative could have changed the exposure.</p></section><section class="pathway"><span>Briefing</span>${labels.map((x,i)=>`<button data-road="${i}"><small>Decision ${i+1}</small><strong>${x.option.label}</strong></button>`).join('<i>→</i>')}<i>→</i><button data-road="7"><small>Decision 8</small><strong>${final.title}</strong></button><i>→</i><span>${ENDINGS[state.ending].title}</span></section><section id="road-detail" class="road-detail"><p>Select a decision on your pathway to compare its alternatives.</p></section><button class="primary road-next" data-action="report">Open Learning Journey Report <span>→</span></button></main>`;
+}
+
+function renderRoadDetail(index){
+  if(index===7){const chosen=PHILOSOPHIES.find(p=>p.id===state.board.philosophy);const target=document.querySelector('#road-detail');target.innerHTML=`<header><div><span>You chose</span><h2>${chosen.title}</h2><p>${chosen.detail}</p></div><blockquote>“${esc(state.board.strategy)}”</blockquote></header><p class="section-label">Alternative philosophies and likely difference</p><div class="alternative-grid">${PHILOSOPHIES.filter(p=>p.id!==chosen.id).map(p=>`<article><span>Alternative ${p.id}</span><h3>${p.title}</h3><p>${p.detail}</p><p>${p.potential}</p></article>`).join('')}</div><div class="academic-note"><strong>Academic interpretation</strong><p>The final philosophy did not determine the ending alone. Its feasibility depended on the architecture, capability, communication, governance and adaptive choices already made.</p></div>`;target.scrollIntoView({behavior:'smooth',block:'start'});return;}
+  const item=selectedLabels()[index];const alternatives=item.scene.options.filter(o=>o.id!==item.option.id);const target=document.querySelector('#road-detail');
+  target.innerHTML=`<header><div><span>You chose</span><h2>${item.option.label}</h2><p>${item.option.consequence}</p></div><blockquote>“${esc(item.decision.reasoning)}”</blockquote></header><p class="section-label">Alternatives and likely difference</p><div class="alternative-grid">${alternatives.map(o=>`<article><span>Alternative ${o.id}</span><h3>${o.label}</h3><p>${o.detail}</p><div>${effectSummary(o.effects)}</div>${state.mode==='explorer'?`<button class="secondary" data-replay="${index}:${o.id}">Explore this path</button>`:''}</article>`).join('')}</div><div class="academic-note"><strong>Academic interpretation</strong><p>${academicInterpretation(item.scene.id,item.option.id)} The alternative could have reduced some exposures while increasing others.</p></div>`;
+  target.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function effectSummary(e){const labels={financial:'financial viability',capability:'capability protection',trust:'workforce trust',risk:'organisational risk'};return Object.entries(e).map(([k,v])=>`<span>${v>0&&k!=='risk'||v<0&&k==='risk'?'↑':'↓'} ${labels[k]}</span>`).join('');}
+
+function achievement(){
+  const q=reasoningQuality();const s=state.scores;return [
+    ['Analyse workforce, financial and organisational evidence',q>.72?'Highly Demonstrated':q>.42?'Demonstrated':'Partially Demonstrated','Your written justifications referenced assumptions and evidence across seven decision points.'],
+    ['Evaluate workforce interventions using multiple criteria',(s.capability>=50&&s.financial>=50)?'Demonstrated':'Partially Demonstrated','Your score pattern shows how you weighted feasibility and capability.'],
+    ['Formulate a strategically aligned strategy',state.board.strategy.length>100?'Highly Demonstrated':'Demonstrated','Your board recommendation integrated interventions, governance and impact.'],
+    ['Defend decisions with trade-offs and risk',q>.68?'Highly Demonstrated':q>.4?'Demonstrated':'Partially Demonstrated','Your recorded reasoning and 90-second executive argument provide direct evidence.'],
+    ['Assess short- and long-term consequences',state.board.measures.split(/[;,\n]/).filter(Boolean).length>=5?'Highly Demonstrated':'Demonstrated','Your success measures extended beyond cost savings.'],
+  ];
+}
+function keyLessons(){const s=state.scores;const out=['A restructuring target should not automatically determine a headcount target.'];if(s.capability<55)out.push('Capability may be concentrated where organisational charts and salary data cannot reveal it.');else out.push('Protecting capability requires mapping knowledge, roles and future work—not only naming talent.');if(s.trust<55)out.push('Implementation process can destroy value even when the financial model is defensible.');else out.push('Credible communication distinguishes what is known from what remains undecided.');if(state.board.philosophy==='D')out.push('Triggers and contingencies can be more rigorous than false certainty.');else out.push('Scenario triggers protect strategic coherence when the business environment keeps changing.');return out.slice(0,4);}
+
+function renderReport(){
+  const e=ENDINGS[state.ending];const labels=selectedLabels();const sw=strengthWeakness();
+  app.innerHTML=`${header()}<main id="main" class="report-page"><section class="report-cover"><p class="eyebrow">Your 72-Hour Restructuring</p><h1>Learning Journey Report</h1><div><span>Mode used <b>${MODES[state.mode].name}</b></span><span>Ending reached <b>${e.title}</b></span><span>Decisions recorded <b>8</b></span></div><button class="secondary" data-action="print">Print / Save PDF</button><button class="secondary" data-action="export">Export decision data</button></section><section class="report-body"><article class="report-block"><p class="section-label">Pathway taken</p><div class="report-path">${labels.map(x=>`<span>${x.option.label}</span>`).join('<i>→</i>')}<i>→</i><span>${['Financial Reset','Balanced Restructure','Capability Transformation','Adaptive Restructure'][state.board.philosophy.charCodeAt(0)-65]}</span></div></article><article class="report-block"><p class="section-label">Major decisions</p><div class="report-decisions">${labels.map((x,i)=>`<details ${i===0?'open':''}><summary><span>0${i+1}</span><div><small>${x.scene.title}</small><strong>${x.option.label}</strong></div></summary><p><b>Your reasoning</b>${esc(x.decision.reasoning)}</p><p><b>Major consequence</b>${x.option.consequence}</p></details>`).join('')}</div></article><article class="report-block"><p class="section-label">Strengths demonstrated</p><div class="feedback-grid">${sw.strengths.map(([t,p])=>`<div><strong>${t}</strong><p>${p}</p></div>`).join('')||'<p>Your written reasoning is the strongest evidence available for this section.</p>'}</div></article><article class="report-block"><p class="section-label">Misconceptions or weaknesses</p><div class="feedback-grid">${sw.weaknesses.map(([t,p])=>`<div><strong>${t}</strong><p>${p}</p></div>`).join('')||'<div><strong>Productive tension</strong><p>Your pathway avoided a dominant single-axis weakness; the trade-offs remained real.</p></div>'}</div></article><article class="report-block"><p class="section-label">Learning outcome achievement</p><div class="achievement-list">${achievement().map(([t,l,evidence])=>`<div><span>${l}</span><h3>${t}</h3><p>${evidence}</p></div>`).join('')}</div></article><article class="report-block split"><div><p class="section-label">Organisational outcome</p><h2>${e.title}</h2><p>${e.summary}</p></div><div><p class="section-label">Learning demonstrated</p><h2>${reasoningQuality()>.7?'Highly developed':'Developing'}</h2><p>Your learning judgement is based on reasoning quality, not simply the ending. Sophisticated analysis can accompany an unsuccessful organisational outcome.</p></div></article><article class="report-block"><p class="section-label">Key lessons</p><div class="lesson-list">${keyLessons().map((x,i)=>`<p><span>0${i+1}</span>${x}</p>`).join('')}</div></article><article class="report-block"><p class="section-label">Reflective questions</p><ol class="reflection-list"><li>Which assumption most influenced your restructuring strategy?</li><li>Which decision would you reconsider after seeing the outcome?</li><li>Where did you prioritise financial certainty over organisational flexibility?</li><li>What evidence did you trust most, and why?</li><li>Which stakeholder had the greatest influence on your decisions?</li><li>If accountable 24 months later, what would you monitor?</li><li>What would you do differently when livelihoods are directly affected?</li></ol></article><article class="final-reflection"><p>The objective was not to discover the perfect number of employees to remove.</p><blockquote>How can an organisation change its cost structure without unintentionally destroying the capabilities, relationships and trust on which future performance depends?</blockquote><p>The quality of your answer depends on the evidence you used, assumptions you challenged, trade-offs you recognised and decisions you could defend.</p></article><div class="final-actions"><button class="secondary" data-action="instructor">Instructor view</button><button class="primary" data-action="restart">Start a new simulation <span>↻</span></button></div></section></main>`;
+}
+
+function renderModal(){
+  if(!state.modal)return;
+  const wrap=document.createElement('div');wrap.className='modal-layer';wrap.innerHTML=`<button class="modal-backdrop" data-action="close-modal" aria-label="Close"></button><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="modal-close" data-action="close-modal">Close ×</button><div id="modal-content"></div></section>`;document.body.append(wrap);
+  const target=wrap.querySelector('#modal-content');
+  if(state.modal.type==='evidence'){
+    const ids=unlockedEvidence();target.innerHTML=`<header><p class="eyebrow">Live case file</p><h2 id="modal-title">Evidence Folder</h2><p>Artefacts unlock as the situation develops. Reviewed items are marked.</p></header><div class="folder-tabs">${[...new Set(ids.map(id=>EVIDENCE[id].category))].map(c=>`<span>${c}</span>`).join('')}</div><div class="folder-grid">${ids.map(id=>{const e=EVIDENCE[id];return `<button data-evidence="${id}" class="folder-item"><span>${e.category} · ${e.stamp}</span><strong>${e.title}</strong><small>${state.viewed.includes(id)?'Reviewed':'Open'} ↗</small></button>`}).join('')}</div>`;
+  } else if(state.modal.type==='artifact'){
+    const e=EVIDENCE[state.modal.id];target.innerHTML=`<header><p class="eyebrow">${e.category} · ${e.stamp}</p><h2 id="modal-title">${e.title}</h2><p>${e.type}</p></header><div class="artifact">${e.content}</div><button class="primary modal-done" data-action="close-modal">Evidence reviewed <span>✓</span></button>`;
+  } else if(state.modal.type==='audio'){
+    const scene=SCENES[Math.min(state.scene,6)];target.innerHTML=`<header><p class="eyebrow">Optional voice-over</p><h2 id="modal-title">Scene narration</h2><p>Narration provides atmosphere and context. It does not read every word on screen.</p></header><div class="audio-controls"><button class="primary" data-action="play-narration">▶ Play narration</button><button class="secondary" data-action="pause-narration">Pause</button><button class="secondary" data-action="replay-narration">Replay</button><button class="secondary" data-action="mute">${state.muted?'Unmute':'Mute narration'}</button></div><div class="transcript"><span>Transcript</span><p>${scene.narration}</p></div>`;
+  } else if(state.modal.type==='menu'){
+    target.innerHTML=`<header><p class="eyebrow">Simulation controls</p><h2 id="modal-title">Session</h2><p>Your progress is saved automatically on this device.</p></header><div class="menu-stack"><button data-action="evidence">Open Evidence Folder <span>${unlockedEvidence().length} artefacts</span></button>${state.ending?'<button data-action="report">Learning Journey Report <span>Open</span></button>':''}<button data-action="instructor">Instructor view <span>Session summary</span></button><button data-action="restart" class="danger">Restart simulation <span>Clear progress</span></button></div>`;
+  } else if(state.modal.type==='instructor'){
+    const counts={};state.decisions.forEach(d=>counts[d.optionId]=(counts[d.optionId]||0)+1);target.innerHTML=`<header><p class="eyebrow">Instructor dashboard · local session</p><h2 id="modal-title">Learning evidence</h2><p>This device-only view summarises the current learner’s pathway. Export is anonymised.</p></header><div class="instructor-stats"><div><span>Completion</span><strong>${state.ending?'100%':Math.round(state.decisions.length/8*100)+'%'}</strong></div><div><span>Reasoning depth</span><strong>${Math.round(reasoningQuality()*100)}%</strong></div><div><span>Ending</span><strong>${state.ending?ENDINGS[state.ending].title:'In progress'}</strong></div></div><div class="choice-bars">${['A','B','C','D'].map(id=>`<div><span>Option ${id}</span><i style="--w:${((counts[id]||0)/Math.max(state.decisions.length,1))*100}%"></i><b>${counts[id]||0}</b></div>`).join('')}</div><div class="misconception"><h3>Common themes in this session</h3><p>${strengthWeakness().weaknesses.map(x=>x[0]).join(' · ')||'Balanced evidence integration'}</p></div><button class="primary" data-action="export">Export anonymised results <span>↓</span></button>`;
   }
-  state.started = true;
-  state.completed = false;
-  if (!state.visitedScenes.length) enterScene('P1-S01', true);
-  else render();
-  saveState(true);
+  setTimeout(()=>wrap.querySelector('.modal-close')?.focus(),20);
 }
 
-function enterScene(id, initial = false) {
-  const scene = sceneById(id);
-  if (!scene) return;
-  if (['P1-S06', 'P1-S08', 'P1-S11'].includes(id) && state.currentSceneId !== id) saveCheckpoint(id);
-  const firstVisit = !state.visitedScenes.includes(id);
-  state.currentSceneId = id;
-  state.revealed = initial ? 1 : 0;
-  state.ending = null;
-  if (firstVisit) {
-    state.visitedScenes.push(id);
-    applyEffects(scene.entryEffects || {});
-    (scene.entryFlags || []).forEach((flag) => { state.flags[flag] = true; });
-    (scene.entryInventory || []).forEach(addInventory);
-  }
-  saveState(true);
-  render();
-  window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
-}
+function openModal(type,id=null){document.querySelector('.modal-layer')?.remove();state.modal={type,id};renderModal();}
+function closeModal(){document.querySelector('.modal-layer')?.remove();state.modal=null;}
+function stopSpeech(){if('speechSynthesis'in window)window.speechSynthesis.cancel();speech=null;}
+function playNarration(replay=false){if(!('speechSynthesis'in window)){toast('Narration is not supported in this browser. The transcript remains available.');return;}if(state.muted){toast('Narration is muted.');return;}if(replay)stopSpeech();if(window.speechSynthesis.paused){window.speechSynthesis.resume();return;}const scene=SCENES[Math.min(state.scene,6)];speech=new SpeechSynthesisUtterance(scene.narration);speech.rate=.94;speech.pitch=.94;window.speechSynthesis.speak(speech);toast('Narration playing');}
+function chooseOption(id){selectedOption=id;document.querySelectorAll('.option').forEach(el=>{const selected=el.dataset.option===id;el.classList.toggle('selected',selected);el.setAttribute('aria-checked',String(selected));});}
+function recordDecision(){const reasoning=document.querySelector('#reasoning')?.value.trim()||'';const error=document.querySelector('.field-error');if(!selectedOption||reasoning.length<20){error.hidden=false;error.textContent=!selectedOption?'Select an option and record your reasoning.':'Record at least 20 characters of reasoning before continuing.';return;}const scene=SCENES[state.scene];const option=scene.options.find(o=>o.id===selectedOption);const existing=decisionFor(scene.id);if(existing){Object.entries(existing.effects).forEach(([k,v])=>state.scores[k]=clamp(state.scores[k]-v));state.decisions=state.decisions.filter(d=>d.sceneId!==scene.id);}Object.entries(option.effects).forEach(([k,v])=>state.scores[k]=clamp(state.scores[k]+v));state.decisions.push({sceneId:scene.id,optionId:option.id,reasoning,effects:option.effects,at:new Date().toISOString()});save();state.screen='consequence';render();announce('Decision recorded.');}
+function continueStory(){if(state.scene===6){state.screen='board';}else{state.scene+=1;state.screen='scene';}save();render();window.scrollTo(0,0);}
+function submitBoard(form){const fd=new FormData(form);const data=Object.fromEntries(fd.entries());const measures=data.measures.split(/[;,\n]/).map(x=>x.trim()).filter(Boolean);if(Object.values(data).some(v=>!String(v).trim())||measures.length<4){form.querySelector('.board-error').hidden=false;return;}state.board={...data,measures:data.measures,at:new Date().toISOString()};state.decisions.push({sceneId:'board',optionId:data.philosophy,reasoning:`${data.problem} ${data.strategy} Risks: ${data.risk1}; ${data.risk2}; ${data.risk3}`,effects:{},at:new Date().toISOString()});state.ending=determineEnding();state.screen='ending';save();render();window.scrollTo(0,0);}
+function replayFrom(index,optionId){const scene=SCENES[index];state.decisions=state.decisions.filter(d=>SCENES.findIndex(s=>s.id===d.sceneId)<index);state.scores={financial:55,capability:55,trust:55,risk:40};state.decisions.forEach(d=>Object.entries(d.effects).forEach(([k,v])=>state.scores[k]=clamp(state.scores[k]+v)));state.scene=index;state.screen='scene';state.board=null;state.ending=null;save();render();chooseOption(optionId);window.scrollTo(0,0);toast('Alternative selected. Add or revise your reasoning.');}
+function exportData(){const data={title:'The 72-Hour Restructuring',mode:MODES[state.mode].name,pathway:selectedLabels().map(x=>({scene:x.scene.title,choice:x.option.label,reasoning:x.decision.reasoning,consequence:x.option.consequence})),board:state.board,ending:state.ending?ENDINGS[state.ending].title:null,scores:state.scores,learningOutcomes:state.board?achievement():[]};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='72-hour-restructuring-learning-report.json';a.click();URL.revokeObjectURL(a.href);toast('Anonymised learning record exported.');}
 
-function applyEffects(effects = {}) {
-  state.trust = clamp(state.trust + (effects.trust || 0), 0, 5);
-  state.evidence = clamp(state.evidence + (effects.evidence || 0), 0, 8);
-  state.danger = clamp(state.danger + (effects.danger || 0), 0, 5);
-  state.trustDaniel += effects.trustDaniel || 0;
-  state.trustPakRazak += effects.trustPakRazak || 0;
-  state.trustAimanSara += effects.trustAimanSara || 0;
-}
+function render(){document.querySelector('.modal-layer')?.remove();state.modal=null;const views={mode:renderMode,briefing:renderBriefing,scene:renderScene,consequence:renderConsequence,board:renderBoard,ending:renderEnding,debrief:renderDebrief,road:renderRoad,report:renderReport};(views[state.screen]||renderMode)();}
 
-function addInventory(item) {
-  if (item && !state.inventory.includes(item)) state.inventory.push(item);
-}
-
-function makeChoice(choiceId) {
-  const scene = sceneById(state.currentSceneId);
-  const choice = scene?.choices?.find((item) => item.id === choiceId);
-  if (!choice) return;
-  applyEffects(choice.effects);
-  (choice.flags || []).forEach((flag) => { state.flags[flag] = true; });
-  (choice.inventory || []).forEach(addInventory);
-  state.decisionHistory.push({ sceneId: scene.id, scene: scene.title, choiceId: choice.id, label: choice.label });
-  saveState(true);
-  showConsequence(choice);
-  setTimeout(() => enterScene(choice.next), prefersReducedMotion() ? 80 : 560);
-}
-
-function showConsequence(choice) {
-  let message = 'Keputusan ini akan diingati.';
-  const effects = choice.effects || {};
-  if ((choice.flags || []).includes('SARA_SECRET')) message = 'Sara kini menyimpan sesuatu daripada yang lain.';
-  else if ((choice.flags || []).includes('PHONE_TAKEN_BY_UNKNOWN')) message = 'Seseorang mengambil apa yang kamu tinggalkan.';
-  else if (effects.danger > 0) message = 'Seseorang kini tahu kamu sedang mencari jawapan.';
-  else if (effects.evidence > 0) message = 'Satu petunjuk baharu mungkin penting kemudian.';
-  else if (effects.trust > 0 || effects.trustAimanSara > 0) message = 'Kamu semakin mempercayai satu sama lain.';
-  else if (effects.trust < 0 || effects.trustDaniel < 0) message = 'Sesuatu dalam persahabatan ini mula retak.';
-  showToast(message, 'consequence');
-}
-
-function continueScene() {
-  const scene = sceneById(state.currentSceneId);
-  if (!scene) return;
-  if (state.revealed < scene.chunks.length) {
-    state.revealed += 1;
-    saveState(true);
-    renderScene({ preserveScroll: true });
-    const latest = document.querySelector('.story-chunk:last-child');
-    latest?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
-    return;
-  }
-  if (scene.next === 'ENDING') resolveEnding();
-  else if (scene.next) enterScene(scene.next);
-}
-
-function resolveEnding() {
-  saveCheckpoint('ENDING');
-  let id = 'P1-E1';
-  if (state.flags.MEILIN_SAW_NIGHT_MEETING || state.flags.DANIEL_HAS_ENVELOPE) id = 'P1-E5';
-  else if (state.flags.SARA_SECRET) id = 'P1-E2';
-  else if (state.flags.LEFT_HAFIZ || state.trust <= 1) id = 'P1-E3';
-  else if (state.evidence >= 3) id = 'P1-E4';
-  state.ending = id;
-  state.completed = true;
-  if (!state.discoveredEndings.includes(id)) state.discoveredEndings.push(id);
-  localStorage.setItem(ENDINGS_KEY, JSON.stringify(state.discoveredEndings));
-  saveState(true);
-  render();
-  window.scrollTo({ top: 0, behavior: 'auto' });
-}
-
-function prefersReducedMotion() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
-
-function showToast(message, kind = '') {
-  clearTimeout(toastTimer);
-  document.querySelector('.toast')?.remove();
-  const toast = document.createElement('div');
-  toast.className = `toast ${kind}`;
-  toast.setAttribute('role', 'status');
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.add('visible'));
-  announce(message);
-  toastTimer = setTimeout(() => {
-    toast.classList.remove('visible');
-    setTimeout(() => toast.remove(), 240);
-  }, kind === 'consequence' ? 2100 : 1300);
-}
-
-function conditionMet(condition) {
-  if (!condition) return true;
-  if (condition.flag) return Boolean(state.flags[condition.flag]);
-  if (condition.notFlag) return !state.flags[condition.notFlag];
-  if (condition.evidenceMin !== undefined) return state.evidence >= condition.evidenceMin;
-  if (condition.trustMax !== undefined) return state.trust <= condition.trustMax;
-  if (condition.all) return condition.all.every(conditionMet);
-  if (condition.any) return condition.any.some(conditionMet);
-  return true;
-}
-
-function renderChunk(chunk, index) {
-  if (!conditionMet(chunk.when)) return '';
-  const style = `--chunk-index:${index}`;
-  if (chunk.type === 'dialogue') {
-    const person = CHARACTERS[chunk.speaker] || { initials: '?', role: '' };
-    return `<div class="story-chunk dialogue" style="${style}"><div class="speaker-mark">${escapeHtml(person.initials)}</div><div><span>${escapeHtml(chunk.speaker)}</span><blockquote>“${escapeHtml(chunk.text)}”</blockquote></div></div>`;
-  }
-  if (chunk.type === 'phone') {
-    return `<div class="story-chunk phone-message" style="${style}"><div class="phone-top"><span>${escapeHtml(chunk.sender)}</span><time>${escapeHtml(chunk.time)}</time></div>${chunk.messages.map((message) => `<p>${escapeHtml(message)}</p>`).join('')}</div>`;
-  }
-  if (chunk.type === 'impact') return `<div class="story-chunk impact" style="${style}">${escapeHtml(chunk.text)}</div>`;
-  if (chunk.type === 'message') return `<div class="story-chunk threat-message" style="${style}">${escapeHtml(chunk.text)}</div>`;
-  if (chunk.type === 'beat') return `<p class="story-chunk beat" style="${style}">${escapeHtml(chunk.text)}</p>`;
-  return `<p class="story-chunk narration" style="${style}">${escapeHtml(chunk.text)}</p>`;
-}
-
-function renderOpening() {
-  const hasSave = state.started && state.visitedScenes.length > 0 && !state.completed;
-  app.innerHTML = `
-    <main id="main" class="opening">
-      <img class="opening-image" src="${ASSETS.opening}" alt="Lima sahabat menghampiri sebuah resort lama dan melihat dua figura misteri di hujung jeti Pulau Tioman." />
-      <div class="opening-scrim"></div>
-      <div class="rain" aria-hidden="true"></div>
-      <section class="opening-copy">
-        <p class="series-label">Thriller interaktif Malaysia</p>
-        <h1>Yang Kita Tinggalkan<br />di Tioman</h1>
-        <div class="part-lockup"><span>Bahagian 1</span><strong>Pulau Yang Menyimpan Rahsia</strong></div>
-        <p class="opening-tagline">Lima sahabat datang untuk menghidupkan semula persahabatan lama. Seseorang sedang memerhati.</p>
-        <div class="opening-actions">
-          <button class="button primary" data-action="${hasSave ? 'resume' : 'start'}">${hasSave ? 'SAMBUNG CERITA' : 'MULAKAN CERITA'}</button>
-          <button class="button ghost" data-action="how-to">CARA BERMAIN</button>
-        </div>
-        <p class="supporting-copy">Pilihan anda mempengaruhi kepercayaan, bukti, tahap bahaya dan pengakhiran cerita.</p>
-      </section>
-      <div class="opening-credit">Pulau Tioman · Tiga hari · Dua malam</div>
-    </main>`;
-}
-
-function progressMarkup(number) {
-  const stages = 8;
-  const active = Math.max(1, Math.ceil((number / 14) * stages));
-  return `<div class="progress-dots" aria-label="Kemajuan anggaran Bahagian 1">${Array.from({ length: stages }, (_, i) => `<span class="${i < active ? 'active' : ''}"></span>`).join('')}</div>`;
-}
-
-function renderTopbar(scene) {
-  return `<header class="topbar">
-    <button class="wordmark" data-action="home" aria-label="Kembali ke pembukaan">YKTDT</button>
-    <div class="part-progress"><span>Bahagian 1</span>${progressMarkup(scene.number)}</div>
-    <div class="topbar-actions">
-      <button class="text-control" data-action="text-down" aria-label="Kecilkan teks">A−</button>
-      <button class="text-control" data-action="text-up" aria-label="Besarkan teks">A+</button>
-      <button class="menu-button" data-panel="menu">MENU</button>
-    </div>
-  </header>`;
-}
-
-function renderScene({ preserveScroll = false } = {}) {
-  const scene = sceneById(state.currentSceneId);
-  if (!scene) return renderOpening();
-  const revealed = Math.min(state.revealed || 0, scene.chunks.length);
-  const decisionReady = revealed >= scene.chunks.length;
-  const imageStyle = scene.imagePosition ? `object-position:${scene.imagePosition}` : '';
-  const choices = decisionReady && scene.choices ? `
-    <section class="decision-block" aria-labelledby="decision-title">
-      <p class="decision-kicker">Keputusan anda</p>
-      <h2 id="decision-title">Apa yang patut mereka lakukan?</h2>
-      <div class="choice-list">${scene.choices.map((choice, index) => `
-        <button class="choice" data-choice="${choice.id}">
-          <span class="choice-index">${String.fromCharCode(65 + index)}</span>
-          <span><strong>${escapeHtml(choice.label)}</strong><small>${escapeHtml(choice.detail)}</small></span>
-        </button>`).join('')}</div>
-      <p class="choice-warning">Tidak semua akibat akan ditunjukkan serta-merta.</p>
-    </section>` : '';
-  const continueButton = !decisionReady ? `<button class="continue-button" data-action="continue">TERUSKAN <span>${revealed + 1}/${scene.chunks.length}</span></button>` : !scene.choices ? `<button class="continue-button final-continue" data-action="continue">${escapeHtml(scene.continueLabel || 'TERUSKAN')}</button>` : '';
-  app.innerHTML = `
-    ${renderTopbar(scene)}
-    <main id="main" class="scene-page tone-${scene.tone}">
-      <section class="scene-visual">
-        <img src="${scene.image}" style="${imageStyle}" alt="${escapeHtml(scene.alt)}" />
-        <div class="scene-scrim"></div>
-        <div class="film-grain" aria-hidden="true"></div>
-        <div class="scene-stamp"><span>Babak ${scene.number}${scene.branch ? scene.branch : ''}</span><strong>${escapeHtml(scene.location)}</strong><time>${escapeHtml(scene.time)}</time></div>
-      </section>
-      <section class="reading-stage">
-        <header class="scene-heading">
-          <p>Bahagian 1 · Babak ${scene.number}${scene.branch ? scene.branch : ''}</p>
-          <h1>${escapeHtml(scene.title)}</h1>
-        </header>
-        <div class="story-flow">${scene.chunks.slice(0, revealed).map(renderChunk).join('')}</div>
-        ${choices}
-        <div class="continue-wrap">${continueButton}</div>
-      </section>
-    </main>`;
-  if (!preserveScroll) document.querySelector('#main')?.focus({ preventScroll: true });
-}
-
-function endingSummary() {
-  const pieces = ['Daniel sudah hilang.'];
-  pieces.push(state.flags.SEARCHED_HAFIZ ? 'Hafiz tidak ditemui di bawah jeti.' : 'Tiada siapa tahu apa yang berlaku kepada Hafiz.');
-  if (state.flags.SARA_SECRET) pieces.push('Sara membawa pulang rahsia yang tidak diketahui oleh yang lain.');
-  else if (state.flags.HAFIZ_PHONE_SHARED) pieces.push('Telefon Hafiz kini menjadi sebahagian daripada rahsia mereka.');
-  else pieces.push('Seseorang mengambil bukti sebelum mereka sempat memahaminya.');
-  return pieces;
-}
-
-function renderEnding() {
-  const ending = ENDINGS[state.ending];
-  if (!ending) return renderOpening();
-  app.innerHTML = `
-    <main id="main" class="ending-page">
-      <img class="ending-image" src="${ending.image}" alt="Babak penutup untuk pengakhiran ${escapeHtml(ending.title)}." />
-      <div class="ending-scrim"></div>
-      <section class="ending-content">
-        <p class="ending-code">Pengakhiran ${ending.code}</p>
-        <h1>${escapeHtml(ending.title)}</h1>
-        <div class="ending-story">${ending.chunks.map((chunk) => `<p>${escapeHtml(chunk)}</p>`).join('')}</div>
-        <div class="ending-rule"></div>
-        <p class="part-over">Bahagian 1 tamat</p>
-        <div class="route-summary">${endingSummary().map((line) => `<p>${escapeHtml(line)}</p>`).join('')}</div>
-        <p class="unfinished">Tetapi cerita anda belum selesai.</p>
-        <div class="ending-actions">
-          <button class="button primary" data-action="part-two">SAMBUNG KE BAHAGIAN 2</button>
-          <button class="button ghost" data-panel="history">LIHAT JEJAK KEPUTUSAN</button>
-          <button class="button text-button" data-action="restart">MAIN SEMULA</button>
-        </div>
-        <p class="ending-count">Pengakhiran ditemui ${state.discoveredEndings.length}/5</p>
-      </section>
-    </main>`;
-}
-
-function statusPanel() {
-  const dangerLabel = state.danger <= 1 ? 'Rendah' : state.danger === 2 ? 'Sederhana' : state.danger <= 4 ? 'Tinggi' : 'Kritikal';
-  const dots = (value, total) => Array.from({ length: total }, (_, index) => `<span class="${index < value ? 'filled' : ''}"></span>`).join('');
-  return `<div class="panel-body status-panel">
-    <p class="panel-intro">Keputusan anda mengubah keadaan, walaupun tidak semua akibat kelihatan sekarang.</p>
-    <div class="status-item"><span>Kepercayaan</span><div class="status-dots" aria-label="Kepercayaan ${state.trust} daripada 5">${dots(state.trust, 5)}</div></div>
-    <div class="status-item"><span>Bukti</span><strong>${state.evidence} petunjuk ditemui</strong></div>
-    <div class="status-item danger-${dangerLabel.toLowerCase()}"><span>Bahaya</span><strong>${dangerLabel}</strong></div>
-  </div>`;
-}
-
-function evidencePanel() {
-  if (!state.inventory.length) return `<div class="panel-body empty-panel"><p>Belum ada bukti yang disimpan.</p><small>Petunjuk hanya muncul apabila anda benar-benar menemuinya.</small></div>`;
-  return `<div class="panel-body evidence-list">${state.inventory.map((id) => {
-    const item = EVIDENCE[id];
-    return `<article><span>${escapeHtml(item.type)}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p><em>${escapeHtml(item.question)}</em></article>`;
-  }).join('')}</div>`;
-}
-
-function characterPanel() {
-  return `<div class="panel-body character-list">${Object.entries(CHARACTERS).map(([name, character]) => {
-    let update = '';
-    if (name === 'Daniel' && state.flags.HAFIZ_KNOWS_DANIEL) update = 'Hafiz mengenalinya sebelum percutian ini.';
-    if (name === 'Daniel' && state.flags.DANIEL_HAS_ENVELOPE) update = 'Dia menerima satu sampul pada pukul 3.17 pagi.';
-    if (name === 'Sara' && state.flags.SARA_SECRET) update = 'Dia kini menyimpan sesuatu daripada semua orang.';
-    if (name === 'Pak Razak' && state.flags.PAK_RAZAK_KNOWS_JETTY) update = 'Sebut sahaja jeti lama sudah cukup untuk membuatnya takut.';
-    return `<article><div class="character-initials">${character.initials}</div><div><span>${escapeHtml(character.role)}</span><h3>${escapeHtml(name)}</h3><p>${escapeHtml(update || character.body)}</p></div></article>`;
-  }).join('')}</div>`;
-}
-
-function historyPanel() {
-  if (!state.decisionHistory.length) return `<div class="panel-body empty-panel"><p>Jejak anda masih kosong.</p></div>`;
-  return `<div class="panel-body history-list">${state.decisionHistory.map((item, index) => `<article><span>${String(index + 1).padStart(2, '0')}</span><div><small>${escapeHtml(item.scene)}</small><p>${escapeHtml(item.label)}</p></div></article>`).join('')}</div>`;
-}
-
-function mapPanel() {
-  const visited = new Set(state.visitedScenes);
-  const linear = ['P1-S01', 'P1-S02', 'P1-S03', 'P1-S04', 'P1-S05', 'P1-S06'];
-  const branchIds = ['P1-S07A', 'P1-S07B', 'P1-S07C'];
-  const tail = ['P1-S08', 'P1-S09', 'P1-S10', 'P1-S11', 'P1-S12', 'P1-S13', 'P1-S14'];
-  const node = (id) => {
-    const scene = sceneById(id);
-    return `<div class="map-node ${visited.has(id) ? 'visited' : 'hidden-node'}">${visited.has(id) ? escapeHtml(scene.title) : '???'}</div>`;
-  };
-  return `<div class="panel-body story-map">
-    ${linear.map((id) => `${node(id)}<span class="map-line"></span>`).join('')}
-    <div class="branch-row">${branchIds.map(node).join('')}</div>
-    <span class="map-line"></span>
-    ${tail.map((id, index) => `${node(id)}${index < tail.length - 1 ? '<span class="map-line"></span>' : ''}`).join('')}
-  </div>`;
-}
-
-function menuPanel() {
-  return `<div class="panel-body menu-list">
-    <button data-action="close-panel">Sambung Cerita</button>
-    <button data-panel="characters">Watak</button>
-    <button data-panel="evidence">Bukti <span>${state.inventory.length}</span></button>
-    <button data-panel="status">Status</button>
-    <button data-panel="history">Jejak Keputusan</button>
-    <button data-panel="map">Peta Cerita</button>
-    <button data-action="text-up">Besarkan Teks <span>A+</span></button>
-    <button data-action="text-down">Kecilkan Teks <span>A−</span></button>
-    <button data-action="sound">Bunyi <span>${state.soundOn ? 'Hidup' : 'Dimatikan'}</span></button>
-    <button data-action="checkpoint" ${latestCheckpoint() ? '' : 'disabled'}>Kembali ke Checkpoint</button>
-    <button class="danger-action" data-action="restart">Mulakan Semula Bahagian</button>
-  </div>`;
-}
-
-function openPanel(type) {
-  const titles = { menu: 'Menu', status: 'Status', evidence: 'Bukti', characters: 'Watak', history: 'Jejak Keputusan', map: 'Peta Cerita' };
-  const content = { menu: menuPanel, status: statusPanel, evidence: evidencePanel, characters: characterPanel, history: historyPanel, map: mapPanel }[type]?.() || '';
-  closeModal();
-  const dialog = document.createElement('div');
-  dialog.className = 'modal-layer';
-  dialog.innerHTML = `<button class="modal-backdrop" data-action="close-panel" aria-label="Tutup panel"></button><section class="side-panel" role="dialog" aria-modal="true" aria-labelledby="panel-title"><header><div><span>Yang Kita Tinggalkan di Tioman</span><h2 id="panel-title">${titles[type]}</h2></div><button class="close-button" data-action="close-panel" aria-label="Tutup">TUTUP</button></header>${content}</section>`;
-  document.body.appendChild(dialog);
-  modal = dialog;
-  dialog.querySelector('button, [tabindex]')?.focus();
-}
-
-function openHowTo() {
-  closeModal();
-  const dialog = document.createElement('div');
-  dialog.className = 'modal-layer centered';
-  dialog.innerHTML = `<button class="modal-backdrop" data-action="close-panel" aria-label="Tutup cara bermain"></button><section class="how-to" role="dialog" aria-modal="true" aria-labelledby="how-title"><button class="close-button" data-action="close-panel">TUTUP</button><p>Cara bermain</p><h2 id="how-title">Baca cerita. Buat keputusan. Hidup dengan akibatnya.</h2><div class="how-grid"><span>Kepercayaan</span><span>Bukti</span><span>Rahsia</span><span>Bahaya</span></div><p>Sesetengah keputusan mengubah hubungan, petunjuk yang ditemui, rahsia yang terdedah dan pengakhiran yang boleh dicapai.</p><strong>Tidak semua akibat akan ditunjukkan serta-merta.</strong><button class="button primary" data-action="understood">FAHAM. MULAKAN.</button></section>`;
-  document.body.appendChild(dialog);
-  modal = dialog;
-  dialog.querySelector('.how-to .close-button')?.focus();
-}
-
-function openPartTwo() {
-  closeModal();
-  const dialog = document.createElement('div');
-  dialog.className = 'modal-layer centered';
-  dialog.innerHTML = `<button class="modal-backdrop" data-action="close-panel" aria-label="Tutup"></button><section class="coming-soon" role="dialog" aria-modal="true" aria-labelledby="next-title"><p>Bahagian 2</p><h2 id="next-title">Mesej Daripada Orang Hilang</h2><strong>Akan Bersambung</strong><button class="button ghost" data-action="close-panel">KEMBALI</button></section>`;
-  document.body.appendChild(dialog);
-  modal = dialog;
-}
-
-function closeModal() {
-  if (modal) modal.remove();
-  modal = null;
-}
-
-function restartStory() {
-  const confirmed = window.confirm('Mulakan semula Bahagian 1? Semua kemajuan laluan semasa akan dipadam. Pengakhiran yang ditemui akan kekal.');
-  if (!confirmed) return;
-  stopAmbience();
-  state = freshState(readEndings());
-  localStorage.removeItem(SAVE_KEY);
-  localStorage.removeItem(CHECKPOINT_KEY);
-  closeModal();
-  renderOpening();
-}
-
-function restoreCheckpoint() {
-  const checkpoint = latestCheckpoint();
-  if (!checkpoint) return;
-  const confirmed = window.confirm('Kembali ke checkpoint terakhir? Kemajuan selepas checkpoint itu akan digantikan.');
-  if (!confirmed) return;
-  state = { ...freshState(), ...checkpoint, soundOn: state.soundOn };
-  closeModal();
-  saveState(true);
-  render();
-}
-
-function toggleSound() {
-  state.soundOn = !state.soundOn;
-  if (state.soundOn) startAmbience();
-  else stopAmbience();
-  saveState(true);
-  openPanel('menu');
-  showToast(state.soundOn ? 'Bunyi suasana dihidupkan' : 'Bunyi dimatikan');
-}
-
-function startAmbience() {
-  try {
-    audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-    if (ambience) return;
-    const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 2, audioContext.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i += 1) data[i] = (Math.random() * 2 - 1) * 0.13;
-    const noise = audioContext.createBufferSource();
-    const filter = audioContext.createBiquadFilter();
-    const gain = audioContext.createGain();
-    noise.buffer = buffer;
-    noise.loop = true;
-    filter.type = 'lowpass';
-    filter.frequency.value = 850;
-    gain.gain.value = 0.035;
-    noise.connect(filter).connect(gain).connect(audioContext.destination);
-    noise.start();
-    ambience = { noise, gain };
-  } catch {
-    state.soundOn = false;
-    showToast('Bunyi tidak disokong oleh pelayar ini');
-  }
-}
-
-function stopAmbience() {
-  try { ambience?.noise.stop(); } catch { /* sudah dihentikan */ }
-  ambience = null;
-}
-
-function adjustText(amount) {
-  state.textScale = clamp(Number((state.textScale + amount).toFixed(2)), 0.9, 1.25);
-  saveState(true);
-  renderScene({ preserveScroll: true });
-  showToast(`Saiz teks ${state.textScale > 1 ? 'dibesarkan' : state.textScale < 1 ? 'dikecilkan' : 'asal'}`);
-}
-
-function render() {
-  document.documentElement.style.setProperty('--text-scale', state.textScale || 1);
-  if (state.completed && state.ending) renderEnding();
-  else if (state.started) renderScene();
-  else renderOpening();
-}
-
-document.addEventListener('click', (event) => {
-  const choice = event.target.closest('[data-choice]');
-  if (choice) return makeChoice(choice.dataset.choice);
-  const panelButton = event.target.closest('[data-panel]');
-  if (panelButton) return openPanel(panelButton.dataset.panel);
-  const actionButton = event.target.closest('[data-action]');
-  if (!actionButton) return;
-  const action = actionButton.dataset.action;
-  if (action === 'start') startStory(true);
-  if (action === 'resume') startStory(false);
-  if (action === 'continue') continueScene();
-  if (action === 'how-to') openHowTo();
-  if (action === 'understood') { closeModal(); startStory(!state.started); }
-  if (action === 'close-panel') closeModal();
-  if (action === 'home') renderOpening();
-  if (action === 'restart') restartStory();
-  if (action === 'checkpoint') restoreCheckpoint();
-  if (action === 'part-two') openPartTwo();
-  if (action === 'sound') toggleSound();
-  if (action === 'text-up') adjustText(0.05);
-  if (action === 'text-down') adjustText(-0.05);
+document.addEventListener('click',e=>{
+  const mode=e.target.closest('[data-mode]');if(mode){state.mode=mode.dataset.mode;renderMode();return;}
+  const evidence=e.target.closest('[data-evidence]');if(evidence){const id=evidence.dataset.evidence;if(!state.viewed.includes(id)){state.viewed.push(id);save();}openModal('artifact',id);return;}
+  const option=e.target.closest('[data-option]');if(option){chooseOption(option.dataset.option);return;}
+  const road=e.target.closest('[data-road]');if(road){renderRoadDetail(Number(road.dataset.road));return;}
+  const replay=e.target.closest('[data-replay]');if(replay){const [i,o]=replay.dataset.replay.split(':');replayFrom(Number(i),o);return;}
+  const btn=e.target.closest('[data-action]');if(!btn)return;const action=btn.dataset.action;
+  if(action==='briefing'){state.screen='briefing';render();}
+  else if(action==='back-mode'||action==='home'){state.screen='mode';render();}
+  else if(action==='resume'){state=load()||state;render();}
+  else if(action==='begin'){state.screen='scene';state.scene=0;state.decisions=[];state.scores={financial:55,capability:55,trust:55,risk:40};state.viewed=[];state.board=null;state.ending=null;save();render();}
+  else if(action==='evidence')openModal('evidence');
+  else if(action==='audio')openModal('audio');
+  else if(action==='menu')openModal('menu');
+  else if(action==='close-modal')closeModal();
+  else if(action==='record')recordDecision();
+  else if(action==='continue')continueStory();
+  else if(action==='reconsider'){state.screen='scene';render();}
+  else if(action==='play-narration')playNarration();
+  else if(action==='pause-narration'){window.speechSynthesis?.pause();toast('Narration paused');}
+  else if(action==='replay-narration')playNarration(true);
+  else if(action==='mute'){state.muted=!state.muted;if(state.muted)stopSpeech();save();openModal('audio');}
+  else if(action==='debrief'){state.screen='debrief';save();render();}
+  else if(action==='road'){state.screen='road';save();render();}
+  else if(action==='report'){closeModal();state.screen='report';save();render();}
+  else if(action==='print')window.print();
+  else if(action==='export')exportData();
+  else if(action==='instructor')openModal('instructor');
+  else if(action==='restart'){if(confirm('Clear this saved simulation and begin again?')){stopSpeech();localStorage.removeItem(SAVE_KEY);state=initialState();render();}}
 });
 
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeModal();
-});
-
-window.addEventListener('beforeunload', () => saveState(true));
-
+document.addEventListener('submit',e=>{if(e.target.id==='board-form'){e.preventDefault();submitBoard(e.target);}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 render();

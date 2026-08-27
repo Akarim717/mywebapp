@@ -1,35 +1,37 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import vm from 'node:vm';
+import { readFileSync, existsSync } from 'node:fs';
 
-const root = resolve(import.meta.dirname, '..');
-const source = readFileSync(resolve(root, 'app.js'), 'utf8');
-const sceneBlock = source.match(/const SCENES = (\[[\s\S]*?\n\];)\n\nconst ENDINGS/);
-if (!sceneBlock) throw new Error('Tidak dapat membaca data babak.');
+const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const required = [
+  "The CEO's Ultimatum",
+  'The Workforce Evidence',
+  'The Capability Trap',
+  'The Leak',
+  'The Fairness Problem',
+  'The Client Threat',
+  'The CEO Pushback',
+  'The Boardroom',
+  'Strategic Renewal',
+  "The Numbers Work, the Organisation Doesn't",
+  'The Trust Deficit',
+  'Capability Collapse',
+  'Transformation Without Traction',
+  'The Procedural Crisis',
+  'The Adaptive Turnaround',
+  'The Principled Defeat',
+  'Academic debrief',
+  'The Road Not Taken',
+  'Learning Journey Report',
+];
 
-const sandbox = {};
-vm.runInNewContext(`const ASSETS = { opening:'opening', hero:'hero', reunion:'reunion', tekek:'tekek', jetty:'jetty', missing:'missing' }; this.scenes = ${sceneBlock[1]}`, sandbox);
-const scenes = sandbox.scenes;
-const ids = new Set(scenes.map((scene) => scene.id));
-const errors = [];
-
-if (scenes.length !== 16) errors.push(`Dijangka 16 nod babak termasuk tiga varian Babak 7, ditemui ${scenes.length}.`);
-for (let number = 1; number <= 14; number += 1) {
-  if (!scenes.some((scene) => scene.number === number)) errors.push(`Babak ${number} tiada.`);
+const missing = required.filter(text => !app.includes(text) && !html.includes(text));
+for (let i = 1; i <= 8; i += 1) {
+  const filename = `assets/restructuring-scene-${String(i).padStart(2, '0')}.jpg`;
+  if (!existsSync(new URL(`../${filename}`, import.meta.url))) missing.push(filename);
 }
-for (const scene of scenes) {
-  if (!scene.title || !scene.image || !scene.chunks?.length) errors.push(`${scene.id} tidak lengkap.`);
-  for (const choice of scene.choices || []) {
-    if (!choice.id || !choice.label || !ids.has(choice.next)) errors.push(`Pilihan tidak sah dalam ${scene.id}.`);
-  }
-  if (scene.next && scene.next !== 'ENDING' && !ids.has(scene.next)) errors.push(`${scene.id} menuju nod yang tiada.`);
-}
-
-const branchTargets = new Set(scenes.find((scene) => scene.id === 'P1-S06')?.choices?.map((choice) => choice.next));
-for (const id of ['P1-S07A', 'P1-S07B', 'P1-S07C']) if (!branchTargets.has(id)) errors.push(`Cabang ${id} tidak boleh dicapai.`);
-
-if (errors.length) {
-  console.error(errors.join('\n'));
+if ((app.match(/id:'[ABCD]'/g) || []).length < 28) missing.push('28+ branching choices');
+if (missing.length) {
+  console.error(`Simulation audit failed: ${missing.join(', ')}`);
   process.exit(1);
 }
-console.log('Audit cerita lulus: 14 babak utama, 3 varian Babak 7 dan semua destinasi pilihan sah.');
+console.log('Simulation audit passed: scenes, dialogue, decisions, endings and learning layers are present.');
